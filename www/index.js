@@ -1,3 +1,14 @@
-import * as wasm from "life";
+import { Universe } from "life";
 
-wasm.greet();
+const pre = document.getElementById("life-canvas");
+const universe = new Universe();
+console.log(universe)
+
+const renderLoop = () => {
+    universe.tick();
+    pre.innerHTML = universe.toString();
+
+    requestAnimationFrame(renderLoop);
+};
+
+requestAnimationFrame(renderLoop);
