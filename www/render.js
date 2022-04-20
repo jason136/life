@@ -55,10 +55,10 @@ function Renderer() {
         ) return;
 
         if (size <= 1) {
-            fill_square(left + canvas_offset_x | 0, top + canvas_offset_y | 0, 1);
+            if(node.population) fill_square(left + canvas_offset_x | 0, top + canvas_offset_y | 0, 1);
         }
         else if (node.level === 0) {
-            fill_square(left + canvas_offset_x, top + canvas_offset_y, cell_width);
+            if(node.population) fill_square(left + canvas_offset_x, top + canvas_offset_y, cell_width);
         }
         else {
             size /= 2;
@@ -158,7 +158,6 @@ function Renderer() {
         canvas_offset_x = canvas_width >> 1;
         canvas_offset_y = canvas_height >> 1;
     }
-
     const move = (dx, dy) => {
         convas_offset_x += Math.round(dx * pixel_ratio);
         canvas_offset_y += Math.round(dy * pixel_ratio);
