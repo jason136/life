@@ -147,37 +147,3 @@ const fps = new class {
         `.trim();
     }
 };
-
-// const renderLoop = () => {
-
-//     drawGrid();
-//     drawCells();
-
-//     animationId = requestAnimationFrame(renderLoop);
-// };
-
-// let animationId = null;
-// const isPaused = () => {
-//     return animationId === null;
-// };
-
-// const playPauseButton = document.getElementById("play-pause");
-// const play = () => {
-//     playPauseButton.textContent = "⏸";
-//     renderLoop();
-// };
-// const pause = () => {
-//     playPauseButton.textContent = "▶";
-//     cancelAnimationFrame(animationId);
-//     animationId = null;
-// };
-// playPauseButton.addEventListener("click", () => {
-//     if (isPaused()) {
-//         play();
-//     }
-//     else {
-//         pause();
-//     }
-// });
-
-// play();
