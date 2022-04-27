@@ -231,4 +231,28 @@ fn ffwd(node: &Node, n: u32) -> Node {
     node
 }
 
+#[wasm_bindgen]
+impl Node {
+    pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
+        if node.population() == 0 {
+            return Vec::new()
+        }
+
+        let size = u32::pow(2, node.level());
+
+        if node.level() == 0 {
+            return vec![x, y]
+        }
+        else {
+            let offset = (size >> 1) as i32;
+            let mut new = Vec::new();
+            new.append(&mut Node::expand(&node.a(), x, y));
+            new.append(&mut Node::expand(&node.b(), x + offset, y));
+            new.append(&mut Node::expand(&node.c(), x, y + offset));
+            new.append(&mut Node::expand(&node.d(), x + offset, y + offset));
+            new
+        }
+    }
+}
+
 // https://johnhw.github.io/hashlife/index.md.html
