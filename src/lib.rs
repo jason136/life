@@ -253,6 +253,75 @@ impl Node {
             new
         }
     }
+
+    pub fn construct(pts: Vec<i32>) -> Node {
+        let mut x_vals = Vec::new();
+        let mut y_vals = Vec::new();
+        for n in 0..pts.len() {
+            if n % 2 == 0 {
+                x_vals.push(pts[n]);
+            }
+            else {
+                y_vals.push(pts[n]);
+            }
+        }
+        let x_min = x_vals.iter().min().unwrap();
+        let y_min = y_vals.iter().min().unwrap();
+        
+        let mut pattern = std::collections::HashMap::new();
+        for n in 0..x_vals.len() {
+            pattern.insert(
+                (x_vals[n] - x_min, y_vals[n] - y_min),
+                ON.clone()
+            );
+        }
+
+        let mut k = 0;
+        let mut last_updated: Node = ON.clone();
+        while pattern.len() != 1 {
+            let mut next_level = std::collections::HashMap::new();
+            let z = get_zero(k);
+
+            while pattern.len() > 0 {
+                let next_pair = pattern.iter().next().unwrap();
+                let mut x = next_pair.0.0;
+                let mut y = next_pair.0.1;
+                x = x - (x & 1);
+                y = y - (y & 1);
+
+                let (a, b, c, d): (Node, Node, Node, Node);
+                if let Some(n) = pattern.remove(&(x, y)) {
+                    a = n;
+                } else {
+                    a = z.clone();
+                }
+                if let Some(n) = pattern.remove(&(x + 1, y)) {
+                    b = n;
+                } else {
+                    b = z.clone();
+                }
+                if let Some(n) = pattern.remove(&(x, y + 1)) {
+                    c = n;
+                } else {
+                    c = z.clone();
+                }
+                if let Some(n) = pattern.remove(&(x + 1, y + 1)) {
+                    d = n;
+                } else {
+                    d = z.clone();
+                }
+
+                next_level.insert(
+                    (x >> 1, y >> 1),
+                    join(&a, &b, &c, &d)
+                );
+                last_updated = next_level.get(&(x >> 1, y >> 1)).unwrap().clone();
+            }
+            pattern = next_level;
+            k += 1;
+        }
+        last_updated
+    }
 }
 
 // https://johnhw.github.io/hashlife/index.md.html
