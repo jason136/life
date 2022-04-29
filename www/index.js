@@ -1,4 +1,4 @@
-import { Universe } from "life";
+import { Node } from "life";
 import { memory } from "life/life_bg";
 
 const CELL_SIZE = 0.1;
@@ -6,9 +6,29 @@ const GRID_COLOR = "#CCCCCC";
 const DEAD_COLOR = "#FFFFFF";
 const ALIVE_COLOR = "#000000";
 
-const universe = Universe.new(128, 128);
-const width = universe.width();
-const height = universe.height();
+const items = [10, 15, 20, 25, 25, 40, 5, 7, 4, 7, 2, 8, 55, 52, 47, 58];
+const node = Node.construct(items);
+console.log(node);
+console.log(node.hash());
+console.log(node.level());
+console.log(node.population());
+
+// console.log('call ffwd');
+// Node.ffwd(node, 10);
+
+console.log("new population: ", node.population());
+
+const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -4, -4, 1000, 1000];
+const node1 = Node.construct(items1);
+console.log(node1.level());
+console.log(node1.population());
+console.log(node1.level());
+console.log(node1.population());
+console.log(node1.level());
+console.log(node1.population());
+
+const items2 = Node.expand(node1, 0, 0);
+console.log(items2);
 
 // function drawSquare(gl, x, y) {
 //     const positionBuffer = gl.createBuffer();

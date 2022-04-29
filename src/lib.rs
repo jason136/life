@@ -195,44 +195,44 @@ fn successor(m: &Node, j: Option<u32>) -> Node {
     }
 }
 
-fn advance(node: &Node, mut n: u32) -> Node {
-    let mut node = node.clone();
-    if n == 0 {
-        return node.clone();
-    }
-
-    let mut bits = Vec::new();
-    while n > 0 {
-        bits.push(n & 1);
-        n = n >> 1;
-        node = center(&node);
-    }
-
-    for (k, bit) in bits.iter().rev().enumerate() {
-        let j: u32 = (bits.iter().len()- k - 1).try_into().unwrap();
-        if bit != &0 {
-            node = successor(&node, Some(j));
-        }
-    }
-    node
-}
-
-fn ffwd(node: &Node, n: u32) -> Node {
-    let mut node = node.clone();
-    for _ in 0..n {
-        while node.level() < 3 || 
-            node.a().level() != node.a().d().d().level() ||
-            node.b().level() != node.b().c().c().level() ||
-            node.d().level() != node.d().a().a().level() {
-            node = center(&node);
-        }
-        node = successor(&node, None);
-    }
-    node
-}
-
 #[wasm_bindgen]
 impl Node {
+    pub fn advance(node: &Node, mut n: u32) -> Node {
+        let mut node = node.clone();
+        if n == 0 {
+            return node.clone();
+        }
+    
+        let mut bits = Vec::new();
+        while n > 0 {
+            bits.push(n & 1);
+            n = n >> 1;
+            node = center(&node);
+        }
+    
+        for (k, bit) in bits.iter().rev().enumerate() {
+            let j: u32 = (bits.iter().len()- k - 1).try_into().unwrap();
+            if bit != &0 {
+                node = successor(&node, Some(j));
+            }
+        }
+        node
+    }
+    
+    pub fn ffwd(node: &Node, n: u32) -> Node {
+        let mut node = node.clone();
+        for _ in 0..n {
+            while node.level() < 3 || 
+                node.a().level() != node.a().d().d().level() ||
+                node.b().level() != node.b().c().c().level() ||
+                node.d().level() != node.d().a().a().level() {
+                node = center(&node);
+            }
+            node = successor(&node, None);
+        }
+        node
+    }
+
     pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
         if node.population() == 0 {
             return Vec::new()
