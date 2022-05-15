@@ -28,7 +28,6 @@ trait OptionExt {
     fn unwrap_ref(&self) -> &Self::Value;
     fn unwrap_mut(&mut self) -> &mut Self::Value;
 }
-
 impl <T> OptionExt for Option<T> {
     type Value = T;
     fn unwrap_ref(&self) -> &T { self.as_ref().unwrap() }
@@ -63,11 +62,12 @@ impl Node {
 fn join(a: &Node, b: &Node, c: &Node, d: &Node) -> Node {
     let n_level = a.level() + 1;
     let n_population: u32 = a.population() + b.population() + c.population() + d.population();
-    let n_hash: u64 = (a.hash() * 5131830419411
-        + b.hash() * 3758991985019
-        + c.hash() * 8973110871315
-        + d.hash() * 4318490180473
-        + u64::from(a.level())
+    let n_hash: u64 = (
+        a.hash() * 5131830419411 +
+        b.hash() * 3758991985019 +
+        c.hash() * 8973110871315 +
+        d.hash() * 4318490180473 +
+        u64::from(a.level())
     ) & ((1 << 63) - 1);
     
     Node {
@@ -96,19 +96,19 @@ fn get_zero(k: u32) -> Node {
 }
 
 fn center(m: &Node) -> Node {
-    let zero = &get_zero(m.level() - 1);
+    let zero = get_zero(m.level() - 1);
     join (
-        &join(zero, zero, zero, m.a.unwrap_ref()),
-        &join(zero, zero, m.b.unwrap_ref(), zero),
-        &join(zero, m.c.unwrap_ref(), zero, zero),
-        &join(m.d.unwrap_ref(), zero, zero, zero),
+        &join(&zero, &zero, &zero, &m.a()),
+        &join(&zero, &zero, &m.b(), &zero),
+        &join(&zero, &m.c(), &zero, &zero),
+        &join(&m.d(), &zero, &zero, &zero),
     )
 }
 
 fn life(a: &Node, b: &Node, c: &Node, d: &Node, e: &Node, 
-            f: &Node, g: &Node, h: &Node, i: &Node) -> Node{
+        f: &Node, g: &Node, h: &Node, i: &Node) -> Node {
     let mut outer = 0;
-    for &n in [&a, &b, &c, &d, &e, &f, &g, &h, &i].iter() {
+    for &n in [a, b, c, d, f, g, h, i].iter() {
         if n.population() > 0 {
             outer += 1;
         }
@@ -127,18 +127,18 @@ fn life(a: &Node, b: &Node, c: &Node, d: &Node, e: &Node,
     }
 }
 fn life_4x4(m: &Node) -> Node {
-    let a = &m.a.unwrap_ref();
-    let b = &m.b.unwrap_ref();
-    let c = &m.c.unwrap_ref();
-    let d = &m.d.unwrap_ref();
+    let a = m.a();
+    let b = m.b();
+    let c = m.c();
+    let d = m.d();
 
-    let ad = life(&a.a(), &a.b(), &b.a(), &a.c(), &a.d(), &b.c(), &c.a(), &c.b(), &d.a());
+    let ab = life(&a.a(), &a.b(), &b.a(), &a.c(), &a.d(), &b.c(), &c.a(), &c.b(), &d.a());
     let bc = life(&a.b(), &b.a(), &b.b(), &a.d(), &b.c(), &b.d(), &c.b(), &d.a(), &d.b());
     let cb = life(&a.c(), &a.d(), &b.c(), &c.a(), &c.b(), &d.a(), &c.c(), &c.d(), &d.c());
     let da = life(&a.d(), &b.c(), &b.d(), &c.b(),&d.a(), &d.b(), &c.d(), &d.c(), &d.d());
 
     join(
-        &ad,
+        &ab,
         &bc,
         &cb,
         &da,
@@ -146,11 +146,6 @@ fn life_4x4(m: &Node) -> Node {
 }
 
 fn successor(m: &Node, j: Option<u32>) -> Node {
-    let a = &m.a.unwrap_ref();
-    let b = &m.b.unwrap_ref();
-    let c = &m.c.unwrap_ref();
-    let d = &m.d.unwrap_ref();
-
     if m.level() == 0 {
         m.a().clone()
     }
@@ -166,6 +161,11 @@ fn successor(m: &Node, j: Option<u32>) -> Node {
             nj = Some(std::cmp::min(j.unwrap(), m.level() - 2));
         }
 
+        let a = &m.a();
+        let b = &m.b();
+        let c = &m.c();
+        let d = &m.d();
+
         let c1 = successor(&join(&a.a(), &a.b(), &a.c(), &a.d()), nj);
         let c2 = successor(&join(&a.b(), &b.a(), &a.d(), &b.c()), nj);
         let c3 = successor(&join(&b.a(), &b.b(), &b.c(), &b.d()), nj);
@@ -176,7 +176,7 @@ fn successor(m: &Node, j: Option<u32>) -> Node {
         let c8 = successor(&join(&c.b(), &d.a(), &c.d(), &d.c()), nj);
         let c9 = successor(&join(&d.a(), &d.b(), &d.c(), &d.d()), nj);
 
-        if j.unwrap() < m.level() - 2 {
+        if nj.unwrap() < m.level() - 2 {
             join(
                 &join(&c1.d(), &c2.c(), &c4.b(), &c5.a()),
                 &join(&c2.d(), &c3.c(), &c5.b(), &c6.a()),
@@ -186,10 +186,10 @@ fn successor(m: &Node, j: Option<u32>) -> Node {
         }
         else {
             join(
-                &successor(&join(&c1.d(), &c2.c(), &c4.b(), &c5.a()), nj),
-                &successor(&join(&c2.d(), &c3.c(), &c5.b(), &c6.a()), nj),
-                &successor(&join(&c4.d(), &c5.c(), &c7.b(), &c8.a()), nj),
-                &successor(&join(&c5.d(), &c6.c(), &c8.b(), &c9.a()), nj)
+                &successor(&join(&c1, &c2, &c4, &c5), nj),
+                &successor(&join(&c2, &c3, &c5, &c6), nj),
+                &successor(&join(&c4, &c5, &c7, &c8), nj),
+                &successor(&join(&c5, &c6, &c8, &c9), nj)
             )
         }
     }
@@ -198,11 +198,11 @@ fn successor(m: &Node, j: Option<u32>) -> Node {
 #[wasm_bindgen]
 impl Node {
     pub fn advance(node: &Node, mut n: u32) -> Node {
-        let mut node = node.clone();
         if n == 0 {
             return node.clone();
         }
     
+        let mut node = node.clone();
         let mut bits = Vec::new();
         while n > 0 {
             bits.push(n & 1);
@@ -211,7 +211,7 @@ impl Node {
         }
     
         for (k, bit) in bits.iter().rev().enumerate() {
-            let j: u32 = (bits.iter().len()- k - 1).try_into().unwrap();
+            let j: u32 = (bits.iter().len() - k - 1).try_into().unwrap();
             if bit != &0 {
                 node = successor(&node, Some(j));
             }
@@ -225,6 +225,7 @@ impl Node {
             while node.level() < 3 || 
                 node.a().level() != node.a().d().d().level() ||
                 node.b().level() != node.b().c().c().level() ||
+                node.c().level() != node.c().b().b().level() ||
                 node.d().level() != node.d().a().a().level() {
                 node = center(&node);
             }
@@ -283,9 +284,7 @@ impl Node {
             let z = get_zero(k);
 
             while pattern.len() > 0 {
-                let next_pair = pattern.iter().next().unwrap();
-                let mut x = next_pair.0.0;
-                let mut y = next_pair.0.1;
+                let (mut x, mut y) = pattern.iter().next().unwrap().0;
                 x = x - (x & 1);
                 y = y - (y & 1);
 
@@ -311,11 +310,8 @@ impl Node {
                     d = z.clone();
                 }
 
-                next_level.insert(
-                    (x >> 1, y >> 1),
-                    join(&a, &b, &c, &d)
-                );
-                last_updated = next_level.get(&(x >> 1, y >> 1)).unwrap().clone();
+                *next_level.entry((x >> 1, y >> 1)).or_insert(z.clone()) = join(&a, &b, &c, &d);
+                last_updated = next_level[&(x >> 1, y >> 1)].clone();
             }
             pattern = next_level;
             k += 1;

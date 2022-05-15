@@ -18,17 +18,21 @@ console.log(node.population());
 
 console.log("new population: ", node.population());
 
-const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -4, -4, 1000, 1000];
-const node1 = Node.construct(items1);
-console.log(node1.level());
-console.log(node1.population());
-console.log(node1.level());
-console.log(node1.population());
-console.log(node1.level());
-console.log(node1.population());
+const button = document.getElementById("create");
 
-const items2 = Node.expand(node1, 0, 0);
-console.log(items2);
+button.addEventListener("click", () => {
+  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -400, -400, 500, 500];
+  const node1 = Node.construct(items1);
+  console.log(node1.level());
+  console.log(node1.population());
+  const items2 = Node.expand(node1, 0, 0);
+  console.log(items2);
+
+  // Node.ffwd(node1, 10);
+  // console.log(node1.level());
+  // console.log(node1.population());
+})
+
 
 // function drawSquare(gl, x, y) {
 //     const positionBuffer = gl.createBuffer();
