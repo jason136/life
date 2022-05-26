@@ -20,7 +20,7 @@ console.log("new population: ", node.population());
 
 const create = document.getElementById("create");
 create.addEventListener("click", () => {
-  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -400, -400, 500, 500];
+  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -40, -40, 50, 50];
   const node1 = Node.construct(items1);
   console.log(node1.level());
   console.log(node1.population());
@@ -34,11 +34,11 @@ create.addEventListener("click", () => {
 
 const forward = document.getElementById("forward");
 forward.addEventListener("click", () => {
-  Node.ffwd(node, 7);
-  console.log(node.level());
-  console.log(node.population());
+  var node5 = Node.ffwd(node, 10);
+  console.log(node5.level());
+  console.log(node5.population());
 
-  const items = Node.expand(node, 0, 0);
+  const items = Node.expand(node5, 0, 0);
   console.log(items);
 
   // Node.ffwd(node1, 10);
