@@ -26,7 +26,25 @@ extern "C" {
     fn log_many(a: &str, b: &str);
 }
 
-#[derive(Clone)]
+#[macro_use]
+extern crate lazy_static;
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+lazy_static! {
+    static ref JOINCACHE: Mutex<HashMap<(u64, u64, u64, u64), Option<Box<Node>>>> = {
+        let mut m = HashMap::new();
+        m.insert((0, 0, 0, 0), None);
+        Mutex::new(m)
+    };
+    static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u32>), Option<Box<Node>>>> = {
+        let mut m = HashMap::new();
+        m.insert((0, None), None);
+        Mutex::new(m)
+    };
+}
+
+#[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct Node {
     a: Option<Box<Node>>,
@@ -79,6 +97,11 @@ impl Node {
 }
 
 fn join(a: Option<Box<Node>>, b: Option<Box<Node>>, c: Option<Box<Node>>, d: Option<Box<Node>>) -> Option<Box<Node>> {
+    let hash_tuple = (a.unwrap_ref().hash, b.unwrap_ref().hash, c.unwrap_ref().hash, d.unwrap_ref().hash);
+    if JOINCACHE.lock().unwrap().contains_key(&hash_tuple) {
+        return JOINCACHE.lock().unwrap().get(&(a.unwrap_ref().hash, b.unwrap_ref().hash, c.unwrap_ref().hash, d.unwrap_ref().hash)).unwrap().clone();
+    }
+
     let n_level = &a.unwrap_ref().level + 1;
     let n_population: u32 = &a.unwrap_ref().population + &b.unwrap_ref().population + &c.unwrap_ref().population + &d.unwrap_ref().population;
     let n_hash: u64 = (
@@ -89,7 +112,7 @@ fn join(a: Option<Box<Node>>, b: Option<Box<Node>>, c: Option<Box<Node>>, d: Opt
         u64::from(a.unwrap_ref().level)
     ) & ((1 << 63) - 1);
 
-    Some(Box::new(Node {
+    let n = Some(Box::new(Node {
         a,
         b,
         c,
@@ -97,7 +120,10 @@ fn join(a: Option<Box<Node>>, b: Option<Box<Node>>, c: Option<Box<Node>>, d: Opt
         population: n_population,
         level: n_level,
         hash: n_hash,
-    }))
+    }));
+
+    JOINCACHE.lock().unwrap().insert(hash_tuple, n.clone());
+    return n;
 }
 
 fn get_zero(k: u32) -> Option<Box<Node>> {
@@ -167,52 +193,59 @@ fn life_4x4(m: Option<Box<Node>>) -> Option<Box<Node>> {
 fn successor(m: Option<Box<Node>>, j: Option<u32>) -> Option<Box<Node>> {
     //log("successor");
     if m.unwrap_ref().level == 0 {
-        m.unwrap_ref().a.clone()
+        return m.unwrap_ref().a.clone()
     }
-    else if m.unwrap_ref().level == 2 {
-        life_4x4(m)
+    if m.unwrap_ref().level == 2 {
+        return life_4x4(m)
+    }
+
+    if SUCCESSORCACHE.lock().unwrap().contains_key(&(m.unwrap_ref().hash, j)) {
+        return SUCCESSORCACHE.lock().unwrap().get(&(m.unwrap_ref().hash, j)).unwrap().clone();
+    }
+    
+    let nj: Option<u32>;
+    if j.is_none() {
+        nj = Some(m.unwrap_ref().level - 2);
     }
     else {
-        let nj: Option<u32>;
-        if j.is_none() {
-            nj = Some(m.unwrap_ref().level - 2);
-        }
-        else {
-            nj = Some(std::cmp::min(j.unwrap(), m.unwrap_ref().level - 2));
-        }
-
-        let a = m.unwrap_ref().a.unwrap_ref();
-        let b = m.unwrap_ref().b.unwrap_ref();
-        let c = m.unwrap_ref().c.unwrap_ref();
-        let d = m.unwrap_ref().d.unwrap_ref();
-
-        let c1 = successor(join(a.a.clone(), a.b.clone(), a.c.clone(), a.d.clone()), nj);
-        let c2 = successor(join(a.b.clone(), b.a.clone(), a.d.clone(), b.c.clone()), nj);
-        let c3 = successor(join(b.a.clone(), b.b.clone(), b.c.clone(), b.d.clone()), nj);
-        let c4 = successor(join(a.c.clone(), a.d.clone(), c.a.clone(), c.b.clone()), nj);
-        let c5 = successor(join(a.d.clone(), b.c.clone(), c.b.clone(), d.a.clone()), nj);
-        let c6 = successor(join(b.c.clone(), b.d.clone(), d.a.clone(), d.b.clone()), nj);
-        let c7 = successor(join(c.a.clone(), c.b.clone(), c.c.clone(), c.d.clone()), nj);
-        let c8 = successor(join(c.b.clone(), d.a.clone(), c.d.clone(), d.c.clone()), nj);
-        let c9 = successor(join(d.a.clone(), d.b.clone(), d.c.clone(), d.d.clone()), nj);
-
-        if nj.unwrap() < m.unwrap().level - 2 {
-            join(
-                join(c1.unwrap_ref().d.clone(), c2.unwrap_ref().c.clone(), c4.unwrap_ref().b.clone(), c5.unwrap_ref().a.clone()),
-                join(c2.unwrap_ref().d.clone(), c3.unwrap_ref().c.clone(), c5.unwrap_ref().b.clone(), c6.unwrap_ref().a.clone()),
-                join(c4.unwrap_ref().d.clone(), c5.unwrap_ref().c.clone(), c7.unwrap_ref().b.clone(), c8.unwrap_ref().a.clone()),
-                join(c5.unwrap_ref().d.clone(), c6.unwrap_ref().c.clone(), c8.unwrap_ref().b.clone(), c9.unwrap_ref().a.clone())
-            )
-        }
-        else {
-            join(
-                successor(join(c1.clone(), c2.clone(), c4.clone(), c5.clone()), nj),
-                successor(join(c2.clone(), c3.clone(), c5.clone(), c6.clone()), nj),
-                successor(join(c4.clone(), c5.clone(), c7.clone(), c8.clone()), nj),
-                successor(join(c5.clone(), c6.clone(), c8.clone(), c9.clone()), nj)
-            )
-        }
+        nj = Some(std::cmp::min(j.unwrap(), m.unwrap_ref().level - 2));
     }
+
+    let a = m.unwrap_ref().a.unwrap_ref();
+    let b = m.unwrap_ref().b.unwrap_ref();
+    let c = m.unwrap_ref().c.unwrap_ref();
+    let d = m.unwrap_ref().d.unwrap_ref();
+
+    let c1 = successor(join(a.a.clone(), a.b.clone(), a.c.clone(), a.d.clone()), nj);
+    let c2 = successor(join(a.b.clone(), b.a.clone(), a.d.clone(), b.c.clone()), nj);
+    let c3 = successor(join(b.a.clone(), b.b.clone(), b.c.clone(), b.d.clone()), nj);
+    let c4 = successor(join(a.c.clone(), a.d.clone(), c.a.clone(), c.b.clone()), nj);
+    let c5 = successor(join(a.d.clone(), b.c.clone(), c.b.clone(), d.a.clone()), nj);
+    let c6 = successor(join(b.c.clone(), b.d.clone(), d.a.clone(), d.b.clone()), nj);
+    let c7 = successor(join(c.a.clone(), c.b.clone(), c.c.clone(), c.d.clone()), nj);
+    let c8 = successor(join(c.b.clone(), d.a.clone(), c.d.clone(), d.c.clone()), nj);
+    let c9 = successor(join(d.a.clone(), d.b.clone(), d.c.clone(), d.d.clone()), nj);
+
+    let n: Option<Box<Node>>;
+    if nj.unwrap() < m.unwrap_ref().level - 2 {
+        n = join(
+            join(c1.unwrap_ref().d.clone(), c2.unwrap_ref().c.clone(), c4.unwrap_ref().b.clone(), c5.unwrap_ref().a.clone()),
+            join(c2.unwrap_ref().d.clone(), c3.unwrap_ref().c.clone(), c5.unwrap_ref().b.clone(), c6.unwrap_ref().a.clone()),
+            join(c4.unwrap_ref().d.clone(), c5.unwrap_ref().c.clone(), c7.unwrap_ref().b.clone(), c8.unwrap_ref().a.clone()),
+            join(c5.unwrap_ref().d.clone(), c6.unwrap_ref().c.clone(), c8.unwrap_ref().b.clone(), c9.unwrap_ref().a.clone())
+        );
+    }
+    else {
+        n = join(
+            successor(join(c1.clone(), c2.clone(), c4.clone(), c5.clone()), nj),
+            successor(join(c2.clone(), c3.clone(), c5.clone(), c6.clone()), nj),
+            successor(join(c4.clone(), c5.clone(), c7.clone(), c8.clone()), nj),
+            successor(join(c5.clone(), c6.clone(), c8.clone(), c9.clone()), nj)
+        );
+    }
+
+    SUCCESSORCACHE.lock().unwrap().insert((m.unwrap_ref().hash, j), n.clone());
+    return n;
 }
 
 #[wasm_bindgen]
@@ -292,7 +325,7 @@ impl Node {
         let x_min = x_vals.iter().min().unwrap();
         let y_min = y_vals.iter().min().unwrap();
         
-        let mut pattern = std::collections::HashMap::new();
+        let mut pattern = HashMap::new();
         for n in 0..x_vals.len() {
             pattern.insert(
                 (x_vals[n] - x_min, y_vals[n] - y_min),
@@ -303,7 +336,7 @@ impl Node {
         let mut k = 0;
         let mut last_updated = (0, 0);
         while pattern.len() != 1 {
-            let mut next_level = std::collections::HashMap::new();
+            let mut next_level = HashMap::new();
             let z = get_zero(k);
 
             while pattern.len() > 0 {
