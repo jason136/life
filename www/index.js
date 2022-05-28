@@ -19,7 +19,7 @@ console.log("new population: ", node.population());
 
 const create = document.getElementById("create");
 create.addEventListener("click", () => {
-  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -400, -400, 500, 500];;
+  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];;
   const node1 = Node.construct(items1);
   console.log(node1.hash());
   console.log(node1.level());

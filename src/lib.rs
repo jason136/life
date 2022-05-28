@@ -34,17 +34,20 @@ pub fn init_panic_hook() {
 extern crate lazy_static;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::Arc;
 
 lazy_static! {
-    static ref JOINCACHE: Mutex<HashMap<Vec<u64>, Option<Box<Node>>>> = {
-        let a = HashMap::new();
-        //a.insert((0, 0, 0, 0), Some(Box::new(OFF.clone())));
-        Mutex::new(a)
+    static ref JOINCACHE: Mutex<HashMap<Vec<u64>, Option<Arc<Node>>>> = {
+        let m = HashMap::new();
+        Mutex::new(m)
     };
-    static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u8>), Option<Box<Node>>>> = {
-        let b = HashMap::new();
-        //b.insert((0, None), Some(Box::new(OFF.clone())));
-        Mutex::new(b)
+    static ref ZEROCACHE: Mutex<HashMap<u8, Option<Arc<Node>>>> = {
+        let m = HashMap::new();
+        Mutex::new(m)
+    };
+    static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u8>), Option<Arc<Node>>>> = {
+        let m = HashMap::new();
+        Mutex::new(m)
     };
 }
 // note: memoize only for larger inputs
@@ -52,10 +55,10 @@ lazy_static! {
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct Node {
-    a: Option<Box<Node>>,
-    b: Option<Box<Node>>,
-    c: Option<Box<Node>>,
-    d: Option<Box<Node>>,
+    a: Option<Arc<Node>>,
+    b: Option<Arc<Node>>,
+    c: Option<Arc<Node>>,
+    d: Option<Arc<Node>>,
     population: u32,
     level: u8,
     hash: u64,
@@ -68,20 +71,20 @@ trait OptionExt {
     fn hash(&self) -> u64;
     fn population(&self) -> u32;
     fn level(&self) -> u8;
-    fn a(&self) -> Option<Box<Node>>;
-    fn b(&self) -> Option<Box<Node>>;
-    fn c(&self) -> Option<Box<Node>>;
-    fn d(&self) -> Option<Box<Node>>;
+    fn a(&self) -> Option<Arc<Node>>;
+    fn b(&self) -> Option<Arc<Node>>;
+    fn c(&self) -> Option<Arc<Node>>;
+    fn d(&self) -> Option<Arc<Node>>;
 }
 
-impl OptionExt for Option<Box<Node>> {
+impl OptionExt for Option<Arc<Node>> {
     fn hash(&self) -> u64 { self.as_ref().unwrap().hash }
     fn population(&self) -> u32 { self.as_ref().unwrap().population }
     fn level(&self) -> u8 { self.as_ref().unwrap().level }
-    fn a(&self) -> Option<Box<Node>> { self.as_ref().unwrap().as_ref().a.clone() }
-    fn b(&self) -> Option<Box<Node>> { self.as_ref().unwrap().as_ref().b.clone() }
-    fn c(&self) -> Option<Box<Node>> { self.as_ref().unwrap().as_ref().c.clone() }
-    fn d(&self) -> Option<Box<Node>> { self.as_ref().unwrap().as_ref().d.clone() }
+    fn a(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().as_ref().a.clone() }
+    fn b(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().as_ref().b.clone() }
+    fn c(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().as_ref().c.clone() }
+    fn d(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().as_ref().d.clone() }
 }
 
 #[wasm_bindgen]
@@ -95,21 +98,21 @@ impl Node {
     pub fn level(&self) -> u8 {
         self.level
     }
-    // fn a(&self) -> Option<Box<Node>> {
+    // fn a(&self) -> Option<Arc<Node>> {
     //     self.a
     // }
-    // fn b(&self) -> Option<Box<Node>> {
+    // fn b(&self) -> Option<Arc<Node>> {
     //     *self.b.as_ref().unwrap().clone()
     // }
-    // fn c(&self) -> Option<Box<Node>> {
+    // fn c(&self) -> Option<Arc<Node>> {
     //     *self.c.as_ref().unwrap().clone()
     // }
-    // fn d(&self) -> Option<Box<Node>> {
+    // fn d(&self) -> Option<Arc<Node>> {
     //     *self.d.as_ref().unwrap().clone()
     // }
 }
 
-fn join(a: Option<Box<Node>>, b: Option<Box<Node>>, c: Option<Box<Node>>, d: Option<Box<Node>>) -> Option<Box<Node>> {
+fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>) -> Option<Arc<Node>> {
     let hash_vec = vec![a.hash(), b.hash(), c.hash(), d.hash()];
     if a.level() > 6 && JOINCACHE.lock().unwrap().contains_key(&hash_vec) {
         let n = JOINCACHE.lock().unwrap().get(&hash_vec).unwrap().clone();
@@ -126,7 +129,7 @@ fn join(a: Option<Box<Node>>, b: Option<Box<Node>>, c: Option<Box<Node>>, d: Opt
         u64::from(a.level())
     ) & ((1 << 63) - 1);
 
-    let n = Some(Box::new(Node {
+    let n = Some(Arc::new(Node {
         a,
         b,
         c,
@@ -140,21 +143,30 @@ fn join(a: Option<Box<Node>>, b: Option<Box<Node>>, c: Option<Box<Node>>, d: Opt
     return n
 }
 
-fn get_zero(k: u8) -> Option<Box<Node>> {
+fn get_zero(k: u8) -> Option<Arc<Node>> {
+    if ZEROCACHE.lock().unwrap().contains_key(&k) {
+        let n = ZEROCACHE.lock().unwrap().get(&k).unwrap().clone();
+        return n;
+    }
+
+    let n: Option<Arc<Node>>;
     if k == 0 {
-        Some(Box::new(OFF.clone()))
+        n = Some(Arc::new(OFF.clone()))
     }
     else {
-        join (
+        n = join (
             get_zero(k - 1),
             get_zero(k - 1),
             get_zero(k - 1),
             get_zero(k - 1),
         )
     }
+
+    ZEROCACHE.lock().unwrap().insert(k, n.clone());
+    return n;
 }
 
-fn center(m: Option<Box<Node>>) -> Option<Box<Node>> {
+fn center(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
     let zero = get_zero(m.level() - 1);
     join (
         join(zero.clone(), zero.clone(), zero.clone(), m.a()),
@@ -164,8 +176,8 @@ fn center(m: Option<Box<Node>>) -> Option<Box<Node>> {
     )
 }
 
-fn life(a: &Option<Box<Node>>, b: &Option<Box<Node>>, c: &Option<Box<Node>>, d: &Option<Box<Node>>, e: &Option<Box<Node>>, 
-        f: &Option<Box<Node>>, g: &Option<Box<Node>>, h: &Option<Box<Node>>, i: &Option<Box<Node>>) -> Option<Box<Node>> {
+fn life(a: &Option<Arc<Node>>, b: &Option<Arc<Node>>, c: &Option<Arc<Node>>, d: &Option<Arc<Node>>, e: &Option<Arc<Node>>, 
+        f: &Option<Arc<Node>>, g: &Option<Arc<Node>>, h: &Option<Arc<Node>>, i: &Option<Arc<Node>>) -> Option<Arc<Node>> {
     let mut outer = 0;
     for n in [a, b, c, d, f, g, h, i].iter() {
         if n.population() > 0 {
@@ -173,19 +185,19 @@ fn life(a: &Option<Box<Node>>, b: &Option<Box<Node>>, c: &Option<Box<Node>>, d: 
         }
     }
     match outer {
-        3 => Some(Box::new(ON.clone())),
+        3 => Some(Arc::new(ON.clone())),
         2 => {
             if e.population() > 0 && outer == 2 {
-                Some(Box::new(ON.clone()))
+                Some(Arc::new(ON.clone()))
             }
             else {
-                Some(Box::new(OFF.clone()))
+                Some(Arc::new(OFF.clone()))
             }
         }
-        _ => Some(Box::new(OFF.clone()))
+        _ => Some(Arc::new(OFF.clone()))
     }
 }
-fn life_4x4(m: &Option<Box<Node>>) -> Option<Box<Node>> {
+fn life_4x4(m: &Option<Arc<Node>>) -> Option<Arc<Node>> {
     let a = m.a();
     let b = m.b();
     let c = m.c();
@@ -204,12 +216,12 @@ fn life_4x4(m: &Option<Box<Node>>) -> Option<Box<Node>> {
     )
 }
 
-fn successor(m: &Option<Box<Node>>, j: Option<u8>) -> Option<Box<Node>> {
+fn successor(m: Option<Arc<Node>>, j: Option<u8>) -> Option<Arc<Node>> {
     if m.level() == 0 {
         return m.a().clone()
     }
     if m.level() == 2 {
-        return life_4x4(m)
+        return life_4x4(&m)
     }
 
     if SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
@@ -228,17 +240,17 @@ fn successor(m: &Option<Box<Node>>, j: Option<u8>) -> Option<Box<Node>> {
     let c = m.c();
     let d = m.d();
 
-    let c1 = successor(&join(a.a(), a.b(), a.c(), a.d()), nj);
-    let c2 = successor(&join(a.b(), b.a(), a.d(), b.c()), nj);
-    let c3 = successor(&join(b.a(), b.b(), b.c(), b.d()), nj);
-    let c4 = successor(&join(a.c(), a.d(), c.a(), c.b()), nj);
-    let c5 = successor(&join(a.d(), b.c(), c.b(), d.a()), nj);
-    let c6 = successor(&join(b.c(), b.d(), d.a(), d.b()), nj);
-    let c7 = successor(&join(c.a(), c.b(), c.c(), c.d()), nj);
-    let c8 = successor(&join(c.b(), d.a(), c.d(), d.c()), nj);
-    let c9 = successor(&join(d.a(), d.b(), d.c(), d.d()), nj);
+    let c1 = successor(join(a.a(), a.b(), a.c(), a.d()), nj);
+    let c2 = successor(join(a.b(), b.a(), a.d(), b.c()), nj);
+    let c3 = successor(join(b.a(), b.b(), b.c(), b.d()), nj);
+    let c4 = successor(join(a.c(), a.d(), c.a(), c.b()), nj);
+    let c5 = successor(join(a.d(), b.c(), c.b(), d.a()), nj);
+    let c6 = successor(join(b.c(), b.d(), d.a(), d.b()), nj);
+    let c7 = successor(join(c.a(), c.b(), c.c(), c.d()), nj);
+    let c8 = successor(join(c.b(), d.a(), c.d(), d.c()), nj);
+    let c9 = successor(join(d.a(), d.b(), d.c(), d.d()), nj);
 
-    let n: Option<Box<Node>>;
+    let n: Option<Arc<Node>>;
     if nj.unwrap() < m.level() - 2 {
         n = join(
             join(c1.d(), c2.c(), c4.b(), c5.a()),
@@ -249,10 +261,10 @@ fn successor(m: &Option<Box<Node>>, j: Option<u8>) -> Option<Box<Node>> {
     }
     else {
         n = join(
-            successor(&join(c1, c2.clone(), c4.clone(), c5.clone()), nj),
-            successor(&join(c2, c3, c5.clone(), c6.clone()), nj),
-            successor(&join(c4, c5.clone(), c7, c8.clone()), nj),
-            successor(&join(c5, c6, c8, c9), nj)
+            successor(join(c1, c2.clone(), c4.clone(), c5.clone()), nj),
+            successor(join(c2, c3, c5.clone(), c6.clone()), nj),
+            successor(join(c4, c5.clone(), c7, c8.clone()), nj),
+            successor(join(c5, c6, c8, c9), nj)
         );
     }
 
@@ -260,32 +272,53 @@ fn successor(m: &Option<Box<Node>>, j: Option<u8>) -> Option<Box<Node>> {
     return n;
 }
 
+fn advance(mut node: Option<Arc<Node>>, mut n: u32) -> Option<Arc<Node>> {
+    if n == 0 {
+        return node;
+    }
+
+    let mut bits = Vec::new();
+    while n > 0 {
+        bits.push(n & 1);
+        n >>= 1;
+        node = center(node);
+    }
+
+    for (k, bit) in bits.iter().rev().enumerate() {
+        let j: u8 = (bits.iter().len() - k - 1).try_into().unwrap();
+        if bit != &0 {
+            node = successor(node, Some(j));
+        }
+    }
+    node
+}
+
 #[wasm_bindgen]
 impl Node {
-    pub fn advance(node: Node, mut n: u32) -> Node {
+    // not really used
+    pub fn advance(mut node: Node, mut n: u32) -> Node {
         if n == 0 {
             return node;
         }
     
-        let mut node = Some(Box::new(node));
         let mut bits = Vec::new();
         while n > 0 {
             bits.push(n & 1);
             n >>= 1;
-            node = center(node);
+            node = (*center(Some(Arc::new(node))).unwrap()).clone();
         }
     
         for (k, bit) in bits.iter().rev().enumerate() {
             let j: u8 = (bits.iter().len() - k - 1).try_into().unwrap();
             if bit != &0 {
-                node = successor(&node, Some(j));
+                node = (*successor(Some(Arc::new(node)), Some(j)).unwrap()).clone();
             }
         }
-        *node.unwrap()
+        node
     }
     
     pub fn ffwd(node: Node, n: u32) -> Node {
-        let mut node = Some(Box::new(node));
+        let mut node = Some(Arc::new(node));
         for _ in 0..n {
             while node.level() < 3 || 
                 node.a().population() != node.a().d().d().population() ||
@@ -294,9 +327,9 @@ impl Node {
                 node.d().population() != node.d().a().a().population() {
                 node = center(node);
             }
-            node = successor(&node, None);
+            node = successor(node, None);
         }
-        *node.unwrap()
+        (*node.unwrap()).clone()
     }
 
     pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
@@ -338,7 +371,7 @@ impl Node {
         for n in 0..x_vals.len() {
             pattern.insert(
                 (x_vals[n] - x_min, y_vals[n] - y_min),
-                Some(Box::new(ON.clone()))
+                Some(Arc::new(ON.clone()))
             );
         }
 
@@ -354,7 +387,7 @@ impl Node {
                 x = x - (x & 1);
                 y = y - (y & 1);
 
-                let (a, b, c, d): (Option<Box<Node>>, Option<Box<Node>>, Option<Box<Node>>, Option<Box<Node>>);
+                let (a, b, c, d): (Option<Arc<Node>>, Option<Arc<Node>>, Option<Arc<Node>>, Option<Arc<Node>>);
                 if let Some(n) = pattern.remove(&(x, y)) {
                     a = n;
                 } else {
@@ -383,7 +416,7 @@ impl Node {
             pattern = next_level;
             k += 1;
         }
-        *pattern[&last_updated].as_ref().unwrap().clone()
+        (**pattern[&last_updated].as_ref().unwrap()).clone()
     }
 }
 
