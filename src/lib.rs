@@ -1,5 +1,3 @@
-mod utils;
-#[cfg(feature = "console_error_panic_hook")]
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -26,23 +24,30 @@ extern "C" {
     fn log_many(a: &str, b: &str);
 }
 
+#[cfg(feature = "console_error_panic_hook")]
+#[wasm_bindgen]
+pub fn init_panic_hook() {
+    console_error_panic_hook::set_once();
+}
+
 #[macro_use]
 extern crate lazy_static;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 lazy_static! {
-    static ref JOINCACHE: Mutex<HashMap<(u64, u64, u64, u64), Option<Box<Node>>>> = {
-        let mut m = HashMap::new();
-        m.insert((0, 0, 0, 0), None);
-        Mutex::new(m)
+    static ref JOINCACHE: Mutex<HashMap<Vec<u64>, Option<Box<Node>>>> = {
+        let a = HashMap::new();
+        //a.insert((0, 0, 0, 0), Some(Box::new(OFF.clone())));
+        Mutex::new(a)
     };
-    static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u32>), Option<Box<Node>>>> = {
-        let mut m = HashMap::new();
-        m.insert((0, None), None);
-        Mutex::new(m)
+    static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u8>), Option<Box<Node>>>> = {
+        let b = HashMap::new();
+        //b.insert((0, None), Some(Box::new(OFF.clone())));
+        Mutex::new(b)
     };
 }
+// note: memoize only for larger inputs
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
@@ -52,7 +57,7 @@ pub struct Node {
     c: Option<Box<Node>>,
     d: Option<Box<Node>>,
     population: u32,
-    level: u32,
+    level: u8,
     hash: u64,
 }
 
@@ -60,15 +65,23 @@ static ON: Node = Node{ a: None, b: None, c: None, d: None, population: 1, level
 static OFF: Node = Node{ a: None, b: None, c: None, d: None, population: 0, level: 0, hash: 0 };
 
 trait OptionExt {
-    type Value;
-    fn unwrap_ref(&self) -> &Self::Value;
-    fn unwrap_mut(&mut self) -> &mut Self::Value;
+    fn hash(&self) -> u64;
+    fn population(&self) -> u32;
+    fn level(&self) -> u8;
+    fn a(&self) -> Option<Box<Node>>;
+    fn b(&self) -> Option<Box<Node>>;
+    fn c(&self) -> Option<Box<Node>>;
+    fn d(&self) -> Option<Box<Node>>;
 }
 
-impl <T> OptionExt for Option<T> {
-    type Value = T;
-    fn unwrap_ref(&self) -> &T { self.as_ref().unwrap() }
-    fn unwrap_mut(&mut self) -> &mut T { self.as_mut().unwrap() }
+impl OptionExt for Option<Box<Node>> {
+    fn hash(&self) -> u64 { self.as_ref().unwrap().hash }
+    fn population(&self) -> u32 { self.as_ref().unwrap().population }
+    fn level(&self) -> u8 { self.as_ref().unwrap().level }
+    fn a(&self) -> Option<Box<Node>> { self.as_ref().unwrap().as_ref().a.clone() }
+    fn b(&self) -> Option<Box<Node>> { self.as_ref().unwrap().as_ref().b.clone() }
+    fn c(&self) -> Option<Box<Node>> { self.as_ref().unwrap().as_ref().c.clone() }
+    fn d(&self) -> Option<Box<Node>> { self.as_ref().unwrap().as_ref().d.clone() }
 }
 
 #[wasm_bindgen]
@@ -79,7 +92,7 @@ impl Node {
     pub fn population(&self) -> u32 {
         self.population
     }
-    pub fn level(&self) -> u32 {
+    pub fn level(&self) -> u8 {
         self.level
     }
     // fn a(&self) -> Option<Box<Node>> {
@@ -97,19 +110,20 @@ impl Node {
 }
 
 fn join(a: Option<Box<Node>>, b: Option<Box<Node>>, c: Option<Box<Node>>, d: Option<Box<Node>>) -> Option<Box<Node>> {
-    let hash_tuple = (a.unwrap_ref().hash, b.unwrap_ref().hash, c.unwrap_ref().hash, d.unwrap_ref().hash);
-    if JOINCACHE.lock().unwrap().contains_key(&hash_tuple) {
-        return JOINCACHE.lock().unwrap().get(&(a.unwrap_ref().hash, b.unwrap_ref().hash, c.unwrap_ref().hash, d.unwrap_ref().hash)).unwrap().clone();
+    let hash_vec = vec![a.hash(), b.hash(), c.hash(), d.hash()];
+    if a.level() > 6 && JOINCACHE.lock().unwrap().contains_key(&hash_vec) {
+        let n = JOINCACHE.lock().unwrap().get(&hash_vec).unwrap().clone();
+        return n;
     }
 
-    let n_level = &a.unwrap_ref().level + 1;
-    let n_population: u32 = &a.unwrap_ref().population + &b.unwrap_ref().population + &c.unwrap_ref().population + &d.unwrap_ref().population;
+    let n_level = &a.level() + 1;
+    let n_population: u32 = &a.population() + &b.population() + &c.population() + &d.population();
     let n_hash: u64 = (
-        &a.unwrap_ref().hash * 5131830419411 +
-        &b.unwrap_ref().hash * 3758991985019 +
-        &c.unwrap_ref().hash * 8973110871315 +
-        &d.unwrap_ref().hash * 4318490180473 +
-        u64::from(a.unwrap_ref().level)
+        &a.hash() * 5131830419411 +
+        &b.hash() * 3758991985019 +
+        &c.hash() * 8973110871315 +
+        &d.hash() * 4318490180473 +
+        u64::from(a.level())
     ) & ((1 << 63) - 1);
 
     let n = Some(Box::new(Node {
@@ -122,11 +136,11 @@ fn join(a: Option<Box<Node>>, b: Option<Box<Node>>, c: Option<Box<Node>>, d: Opt
         hash: n_hash,
     }));
 
-    JOINCACHE.lock().unwrap().insert(hash_tuple, n.clone());
-    return n;
+    JOINCACHE.lock().unwrap().insert(hash_vec, n.clone());
+    return n
 }
 
-fn get_zero(k: u32) -> Option<Box<Node>> {
+fn get_zero(k: u8) -> Option<Box<Node>> {
     if k == 0 {
         Some(Box::new(OFF.clone()))
     }
@@ -141,12 +155,12 @@ fn get_zero(k: u32) -> Option<Box<Node>> {
 }
 
 fn center(m: Option<Box<Node>>) -> Option<Box<Node>> {
-    let zero = get_zero(m.unwrap_ref().level - 1);
+    let zero = get_zero(m.level() - 1);
     join (
-        join(zero.clone(), zero.clone(), zero.clone(), m.unwrap_ref().a.clone()),
-        join(zero.clone(), zero.clone(), m.unwrap_ref().b.clone(),zero.clone()),
-        join(zero.clone(), m.unwrap_ref().c.clone(), zero.clone(),zero.clone()),
-        join(m.unwrap_ref().d.clone(), zero.clone(), zero.clone(),zero.clone()),
+        join(zero.clone(), zero.clone(), zero.clone(), m.a()),
+        join(zero.clone(), zero.clone(), m.b(),zero.clone()),
+        join(zero.clone(), m.c(), zero.clone(),zero.clone()),
+        join(m.d(), zero.clone(), zero.clone(),zero),
     )
 }
 
@@ -154,14 +168,14 @@ fn life(a: &Option<Box<Node>>, b: &Option<Box<Node>>, c: &Option<Box<Node>>, d: 
         f: &Option<Box<Node>>, g: &Option<Box<Node>>, h: &Option<Box<Node>>, i: &Option<Box<Node>>) -> Option<Box<Node>> {
     let mut outer = 0;
     for n in [a, b, c, d, f, g, h, i].iter() {
-        if n.unwrap_ref().population > 0 {
+        if n.population() > 0 {
             outer += 1;
         }
     }
     match outer {
         3 => Some(Box::new(ON.clone())),
         2 => {
-            if e.unwrap_ref().population > 0 && outer == 2 {
+            if e.population() > 0 && outer == 2 {
                 Some(Box::new(ON.clone()))
             }
             else {
@@ -171,16 +185,16 @@ fn life(a: &Option<Box<Node>>, b: &Option<Box<Node>>, c: &Option<Box<Node>>, d: 
         _ => Some(Box::new(OFF.clone()))
     }
 }
-fn life_4x4(m: Option<Box<Node>>) -> Option<Box<Node>> {
-    let a = m.unwrap_ref().a.unwrap_ref();
-    let b = m.unwrap_ref().b.unwrap_ref();
-    let c = m.unwrap_ref().c.unwrap_ref();
-    let d = m.unwrap_ref().d.unwrap_ref();
+fn life_4x4(m: &Option<Box<Node>>) -> Option<Box<Node>> {
+    let a = m.a();
+    let b = m.b();
+    let c = m.c();
+    let d = m.d();
 
-    let ab = life(&a.a, &a.b, &b.a, &a.c,&a.d, &b.c, &c.a, &c.b, &d.a);
-    let bc = life(&a.b, &b.a, &b.b, &a.d,&b.c, &b.d, &c.b, &d.a, &d.b);
-    let cb = life(&a.c, &a.d, &b.c, &c.a,&c.b, &d.a, &c.c, &c.d, &d.c);
-    let da = life(&a.d, &b.c, &b.d, &c.b,&d.a, &d.b, &c.d, &d.c, &d.d);
+    let ab = life(&a.a(), &a.b(), &b.a(), &a.c(),&a.d(), &b.c(), &c.a(), &c.b(), &d.a());
+    let bc = life(&a.b(), &b.a(), &b.b(), &a.d(),&b.c(), &b.d(), &c.b(), &d.a(), &d.b());
+    let cb = life(&a.c(), &a.d(), &b.c(), &c.a(),&c.b(), &d.a(), &c.c(), &c.d(), &d.c());
+    let da = life(&a.d(), &b.c(), &b.d(), &c.b(),&d.a(), &d.b(), &c.d(), &d.c(), &d.d());
 
     join(
         ab,
@@ -190,61 +204,59 @@ fn life_4x4(m: Option<Box<Node>>) -> Option<Box<Node>> {
     )
 }
 
-fn successor(m: Option<Box<Node>>, j: Option<u32>) -> Option<Box<Node>> {
-    //log("successor");
-    if m.unwrap_ref().level == 0 {
-        return m.unwrap_ref().a.clone()
+fn successor(m: &Option<Box<Node>>, j: Option<u8>) -> Option<Box<Node>> {
+    if m.level() == 0 {
+        return m.a().clone()
     }
-    if m.unwrap_ref().level == 2 {
+    if m.level() == 2 {
         return life_4x4(m)
     }
 
-    if SUCCESSORCACHE.lock().unwrap().contains_key(&(m.unwrap_ref().hash, j)) {
-        return SUCCESSORCACHE.lock().unwrap().get(&(m.unwrap_ref().hash, j)).unwrap().clone();
+    if SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
+        return SUCCESSORCACHE.lock().unwrap().get(&(m.hash(), j)).unwrap().clone();
     }
     
-    let nj: Option<u32>;
-    if j.is_none() {
-        nj = Some(m.unwrap_ref().level - 2);
+    let nj: Option<u8> = if j.is_none() {
+        Some(m.level() - 2)
     }
     else {
-        nj = Some(std::cmp::min(j.unwrap(), m.unwrap_ref().level - 2));
-    }
+        Some(std::cmp::min(j.unwrap(), m.level() - 2))
+    };
 
-    let a = m.unwrap_ref().a.unwrap_ref();
-    let b = m.unwrap_ref().b.unwrap_ref();
-    let c = m.unwrap_ref().c.unwrap_ref();
-    let d = m.unwrap_ref().d.unwrap_ref();
+    let a = m.a();
+    let b = m.b();
+    let c = m.c();
+    let d = m.d();
 
-    let c1 = successor(join(a.a.clone(), a.b.clone(), a.c.clone(), a.d.clone()), nj);
-    let c2 = successor(join(a.b.clone(), b.a.clone(), a.d.clone(), b.c.clone()), nj);
-    let c3 = successor(join(b.a.clone(), b.b.clone(), b.c.clone(), b.d.clone()), nj);
-    let c4 = successor(join(a.c.clone(), a.d.clone(), c.a.clone(), c.b.clone()), nj);
-    let c5 = successor(join(a.d.clone(), b.c.clone(), c.b.clone(), d.a.clone()), nj);
-    let c6 = successor(join(b.c.clone(), b.d.clone(), d.a.clone(), d.b.clone()), nj);
-    let c7 = successor(join(c.a.clone(), c.b.clone(), c.c.clone(), c.d.clone()), nj);
-    let c8 = successor(join(c.b.clone(), d.a.clone(), c.d.clone(), d.c.clone()), nj);
-    let c9 = successor(join(d.a.clone(), d.b.clone(), d.c.clone(), d.d.clone()), nj);
+    let c1 = successor(&join(a.a(), a.b(), a.c(), a.d()), nj);
+    let c2 = successor(&join(a.b(), b.a(), a.d(), b.c()), nj);
+    let c3 = successor(&join(b.a(), b.b(), b.c(), b.d()), nj);
+    let c4 = successor(&join(a.c(), a.d(), c.a(), c.b()), nj);
+    let c5 = successor(&join(a.d(), b.c(), c.b(), d.a()), nj);
+    let c6 = successor(&join(b.c(), b.d(), d.a(), d.b()), nj);
+    let c7 = successor(&join(c.a(), c.b(), c.c(), c.d()), nj);
+    let c8 = successor(&join(c.b(), d.a(), c.d(), d.c()), nj);
+    let c9 = successor(&join(d.a(), d.b(), d.c(), d.d()), nj);
 
     let n: Option<Box<Node>>;
-    if nj.unwrap() < m.unwrap_ref().level - 2 {
+    if nj.unwrap() < m.level() - 2 {
         n = join(
-            join(c1.unwrap_ref().d.clone(), c2.unwrap_ref().c.clone(), c4.unwrap_ref().b.clone(), c5.unwrap_ref().a.clone()),
-            join(c2.unwrap_ref().d.clone(), c3.unwrap_ref().c.clone(), c5.unwrap_ref().b.clone(), c6.unwrap_ref().a.clone()),
-            join(c4.unwrap_ref().d.clone(), c5.unwrap_ref().c.clone(), c7.unwrap_ref().b.clone(), c8.unwrap_ref().a.clone()),
-            join(c5.unwrap_ref().d.clone(), c6.unwrap_ref().c.clone(), c8.unwrap_ref().b.clone(), c9.unwrap_ref().a.clone())
+            join(c1.d(), c2.c(), c4.b(), c5.a()),
+            join(c2.d(), c3.c(), c5.b(), c6.a()),
+            join(c4.d(), c5.c(), c7.b(), c8.a()),
+            join(c5.d(), c6.c(), c8.b(), c9.a())
         );
     }
     else {
         n = join(
-            successor(join(c1.clone(), c2.clone(), c4.clone(), c5.clone()), nj),
-            successor(join(c2.clone(), c3.clone(), c5.clone(), c6.clone()), nj),
-            successor(join(c4.clone(), c5.clone(), c7.clone(), c8.clone()), nj),
-            successor(join(c5.clone(), c6.clone(), c8.clone(), c9.clone()), nj)
+            successor(&join(c1, c2.clone(), c4.clone(), c5.clone()), nj),
+            successor(&join(c2, c3, c5.clone(), c6.clone()), nj),
+            successor(&join(c4, c5.clone(), c7, c8.clone()), nj),
+            successor(&join(c5, c6, c8, c9), nj)
         );
     }
 
-    SUCCESSORCACHE.lock().unwrap().insert((m.unwrap_ref().hash, j), n.clone());
+    SUCCESSORCACHE.lock().unwrap().insert((n.hash(), j), n.clone());
     return n;
 }
 
@@ -259,14 +271,14 @@ impl Node {
         let mut bits = Vec::new();
         while n > 0 {
             bits.push(n & 1);
-            n = n >> 1;
+            n >>= 1;
             node = center(node);
         }
     
         for (k, bit) in bits.iter().rev().enumerate() {
-            let j: u32 = (bits.iter().len() - k - 1).try_into().unwrap();
+            let j: u8 = (bits.iter().len() - k - 1).try_into().unwrap();
             if bit != &0 {
-                node = successor(node, Some(j));
+                node = successor(&node, Some(j));
             }
         }
         *node.unwrap()
@@ -275,38 +287,35 @@ impl Node {
     pub fn ffwd(node: Node, n: u32) -> Node {
         let mut node = Some(Box::new(node));
         for _ in 0..n {
-            while node.unwrap_ref().level < 3 || 
-                node.unwrap_ref().a.unwrap_ref().population != node.unwrap_ref().a.unwrap_ref().d.unwrap_ref().d.unwrap_ref().population ||
-                node.unwrap_ref().b.unwrap_ref().population != node.unwrap_ref().b.unwrap_ref().c.unwrap_ref().c.unwrap_ref().population ||
-                node.unwrap_ref().c.unwrap_ref().population != node.unwrap_ref().c.unwrap_ref().b.unwrap_ref().b.unwrap_ref().population ||
-                node.unwrap_ref().d.unwrap_ref().population != node.unwrap_ref().d.unwrap_ref().a.unwrap_ref().a.unwrap_ref().population {
-                log("looping begin");
+            while node.level() < 3 || 
+                node.a().population() != node.a().d().d().population() ||
+                node.b().population() != node.b().c().c().population() ||
+                node.c().population() != node.c().b().b().population() ||
+                node.d().population() != node.d().a().a().population() {
                 node = center(node);
-                log("looping end");
             }
-            log("done looping");
-            node = successor(node, None);
+            node = successor(&node, None);
         }
         *node.unwrap()
     }
 
     pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
-        if node.population == 0 {
+        if node.population() == 0 {
             return Vec::new()
         }
 
-        let size = u32::pow(2, node.level);
+        let size = u32::pow(2, node.level().into());
 
-        if node.level == 0 {
+        if node.level() == 0 {
             return vec![x, y]
         }
         else {
             let offset = (size >> 1) as i32;
             let mut new = Vec::new();
-            new.append(&mut Node::expand(&node.a.unwrap_ref(), x, y));
-            new.append(&mut Node::expand(&node.b.unwrap_ref(), x + offset, y));
-            new.append(&mut Node::expand(&node.c.unwrap_ref(), x, y + offset));
-            new.append(&mut Node::expand(&node.d.unwrap_ref(), x + offset, y + offset));
+            new.append(&mut Node::expand(&node.a.as_ref().unwrap(), x, y));
+            new.append(&mut Node::expand(&node.b.as_ref().unwrap(), x + offset, y));
+            new.append(&mut Node::expand(&node.c.as_ref().unwrap(), x, y + offset));
+            new.append(&mut Node::expand(&node.d.as_ref().unwrap(), x + offset, y + offset));
             new
         }
     }
@@ -325,7 +334,7 @@ impl Node {
         let x_min = x_vals.iter().min().unwrap();
         let y_min = y_vals.iter().min().unwrap();
         
-        let mut pattern = HashMap::new();
+        let mut pattern = std::collections::HashMap::new();
         for n in 0..x_vals.len() {
             pattern.insert(
                 (x_vals[n] - x_min, y_vals[n] - y_min),
@@ -336,12 +345,10 @@ impl Node {
         let mut k = 0;
         let mut last_updated = (0, 0);
         while pattern.len() != 1 {
-            let mut next_level = HashMap::new();
+            let mut next_level = std::collections::HashMap::new();
             let z = get_zero(k);
 
             while pattern.len() > 0 {
-
-                log("construction begin");
 
                 let (mut x, mut y) = pattern.iter().next().unwrap().0;
                 x = x - (x & 1);
@@ -369,19 +376,14 @@ impl Node {
                     d = z.clone();
                 }
 
-                log("weird step1");
                 last_updated = (x >> 1, y >> 1);
-
-                log("weird step2");
                 next_level.insert((x >> 1, y >> 1), join(a, b, c, d));
 
-                log(next_level.len().to_string().as_str());
             }
             pattern = next_level;
             k += 1;
         }
-        log("begin copy");
-        *pattern[&last_updated].unwrap_ref().clone()
+        *pattern[&last_updated].as_ref().unwrap().clone()
     }
 }
 

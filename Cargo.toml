@@ -3,6 +3,9 @@ name = "life"
 version = "0.1.0"
 authors = ["Jason Wiemels <jason.wiemels@gmail.com>"]
 edition = "2021"
+description = "A game of life implementation in Rust using wasm"
+repository = "https://github.com/jason136/life"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -33,3 +36,4 @@ wasm-bindgen-test = "0.3.13"
 [profile.release]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
+debug = true

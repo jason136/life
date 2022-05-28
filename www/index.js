@@ -1,10 +1,12 @@
-import { Node } from "life";
+import { init_panic_hook, Node } from "life";
 import { memory } from "life/life_bg";
 
 const CELL_SIZE = 0.1;
 const GRID_COLOR = "#CCCCCC";
 const DEAD_COLOR = "#FFFFFF";
 const ALIVE_COLOR = "#000000";
+
+init_panic_hook();
 
 const items = [10, 15, 20, 25, 25, 40, 5, 7, 4, 7, 2, 8, 55, 52, 47, 58];
 const node = Node.construct(items);
@@ -13,15 +15,13 @@ console.log(node.hash());
 console.log(node.level());
 console.log(node.population());
 
-// console.log('call ffwd');
-// Node.ffwd(node, 10);
-
 console.log("new population: ", node.population());
 
 const create = document.getElementById("create");
 create.addEventListener("click", () => {
-  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -40, -40, 50, 50];
+  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -400, -400, 500, 500];;
   const node1 = Node.construct(items1);
+  console.log(node1.hash());
   console.log(node1.level());
   console.log(node1.population());
   const items2 = Node.expand(node1, 0, 0);
