@@ -1,5 +1,7 @@
-import { init_panic_hook, Node } from "life";
+import { init_panic_hook, Node, Life } from "life";
 import { memory } from "life/life_bg";
+
+import { Renderer } from "./render";
 
 const CELL_SIZE = 0.1;
 const GRID_COLOR = "#CCCCCC";
@@ -8,23 +10,25 @@ const ALIVE_COLOR = "#000000";
 
 init_panic_hook();
 
-const items = [10, 15, 20, 25, 25, 40, 5, 7, 4, 7, 2, 8, 55, 52, 47, 58];
-const node = Node.construct(items);
+const items = [0, 0, 0, 1, 1, 0, 1, 1, 10, 15, 20, 25, 25, 40, 5, 7, 4, 7, 2, 8, 55, 52, 47, 58];
+var node = Life.construct(items);
 console.log(node);
 console.log(node.hash());
 console.log(node.level());
 console.log(node.population());
 
+Renderer.init(document.parentElement);
+
 console.log("new population: ", node.population());
 
 const create = document.getElementById("create");
 create.addEventListener("click", () => {
-  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];;
-  const node1 = Node.construct(items1);
+  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];
+  const node1 = Life.construct(items1);
   console.log(node1.hash());
   console.log(node1.level());
   console.log(node1.population());
-  const items2 = Node.expand(node1, 0, 0);
+  const items2 = Life.expand(node1, 0, 0);
   console.log(items2);
 
   // Node.ffwd(node1, 10);
@@ -33,13 +37,18 @@ create.addEventListener("click", () => {
 })
 
 const forward = document.getElementById("forward");
-forward.addEventListener("click", () => {
-  var node5 = Node.ffwd(node, 10);
-  console.log(node5.level());
-  console.log(node5.population());
 
-  const items = Node.expand(node5, 0, 0);
-  console.log(items);
+const items5 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];
+var node5 = Life.construct(items);
+
+forward.addEventListener("click", () => {
+  for (let x = 0; x < 100; x++) {
+    node5 = Life.ffwd(node5, 10);
+    console.log(node5.population());
+  }
+
+  const items = Life.expand(node5, 0, 0);
+  console.log(items5);
 
   // Node.ffwd(node1, 10);
   // console.log(node1.level());

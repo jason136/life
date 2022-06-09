@@ -28,7 +28,7 @@ function Renderer() {
     this.border_width = 0;
 
     this.init = (dom_parent) => {
-        canvas = document.createElement("canvas");
+        canvas = document.getElementById("canvas");
 
         if (!canvas.getContext) {
             return false;
@@ -242,5 +242,7 @@ function Renderer() {
         }
     }
 }
+
+export { Renderer };
 
 // https://github.com/copy/life/blob/924c90afb529ad5d417f11d795bc1b400fff8d18/draw.js
