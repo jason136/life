@@ -1,5 +1,7 @@
 use wasm_bindgen::prelude::*;
 
+mod render;
+
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
 #[cfg(feature = "wee_alloc")]
@@ -62,17 +64,6 @@ pub struct Node {
     population: u32,
     level: u8,
     hash: u64,
-}
-
-#[derive(Debug, Clone)]
-#[wasm_bindgen]
-pub struct Renderer {
-    width: u32,
-    height: u32,
-    center_x: i32,
-    center_y: i32,
-    zoom: f32,
-    image_data: Vec<u8>,
 }
 
 pub struct Life;
@@ -389,39 +380,5 @@ impl Life {
             k += 1;
         }
         (**pattern[&last_updated].as_ref().unwrap()).clone()
-    }
-
-    pub fn renderer() -> Renderer {
-        Renderer {
-            width: 0,
-            height: 0,
-            center_x: 0,
-            center_y: 0,
-            zoom: 1.0,
-            image_data: vec![],
-        }
-    }
-}
-
-#[wasm_bindgen]
-impl Renderer {
-    pub fn image_data_ptr(&self) -> *const u8 {
-        self.image_data.as_ptr()
-    }
-
-    pub fn zoom(mut self, zoom: f32) {
-        self.zoom = zoom;
-    }
-    pub fn dimensions(mut self, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
-    }
-    pub fn center(mut self, x: i32, y: i32) {
-        self.center_x = x;
-        self.center_y = y;
-    }
-
-    pub fn update_image_data(mut self, node: Node) {
-        self.image_data = vec![0; (self.width * self.height * 4).try_into().unwrap()];
     }
 }

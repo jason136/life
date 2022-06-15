@@ -5,8 +5,6 @@ import { memory } from "life/life_bg";
 
 // https://github.com/copy/life/blob/924c90afb529ad5d417f11d795bc1b400fff8d18/main.js
 
-console.log(Life.image_data_ptr())
-
 init_panic_hook();
 
 const canvas = document.getElementById("canvas");
@@ -16,25 +14,29 @@ const canvas_width = canvas.width;
 const canvas_height = canvas.height;
 
 
-
-
 const items5 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];
 var node5 = Life.construct(items5);
 
+var renderer = Renderer.new();
+renderer.set_center(canvas_width / 2, canvas_height / 2);
+renderer.set_size(canvas_width, canvas_height);
+renderer.set_zoom(1.0);
 
-const renderer = Life.renderer()
+console.log(renderer);
 
-renderer.zoom(0.8);
-renderer.dimensions(innerWidth, innerHeight);
-renderer.update_image_data(node);
-
+renderer.update_image_data(node5);
 const imagePtr = renderer.image_data_ptr();
-const image_data_data = new Uint8ClampedArray(memory.buffer, imagePtr, canvas_width * canvas_height * 4);
+
+// const int32_data = new Int32Array(memory.buffer, imagePtr, canvas_width * canvas_height);
+// const image_data_data = new Uint8ClampedArray(int32_data.buffer);
+const image_data_data = new Uint8ClampedArray(memory.buffer, imagePtr, canvas_width * canvas_height);
+console.log(image_data_data);
 const image_data = new ImageData(image_data_data, canvas_width, canvas_height);
 
 context.putImageData(image_data, 0, 0);
 
-console.log("new population: ", node.population());
+
+
 
 const create = document.getElementById("create");
 create.addEventListener("click", () => {
