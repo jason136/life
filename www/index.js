@@ -1,23 +1,38 @@
-import { init_panic_hook, Node, Life } from "life";
+import { init_panic_hook, Node, Life, Renderer } from "life";
 import { memory } from "life/life_bg";
 
-import { Renderer } from "./render";
+// import { Renderer } from "./render";
 
-const CELL_SIZE = 0.1;
-const GRID_COLOR = "#CCCCCC";
-const DEAD_COLOR = "#FFFFFF";
-const ALIVE_COLOR = "#000000";
+// https://github.com/copy/life/blob/924c90afb529ad5d417f11d795bc1b400fff8d18/main.js
+
+console.log(Life.image_data_ptr())
 
 init_panic_hook();
 
-const items = [0, 0, 0, 1, 1, 0, 1, 1, 10, 15, 20, 25, 25, 40, 5, 7, 4, 7, 2, 8, 55, 52, 47, 58];
-var node = Life.construct(items);
-console.log(node);
-console.log(node.hash());
-console.log(node.level());
-console.log(node.population());
+const canvas = document.getElementById("canvas");
+const context = canvas.getContext("2d");
 
-Renderer.init(document.parentElement);
+const canvas_width = canvas.width;
+const canvas_height = canvas.height;
+
+
+
+
+const items5 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];
+var node5 = Life.construct(items5);
+
+
+const renderer = Life.renderer()
+
+renderer.zoom(0.8);
+renderer.dimensions(innerWidth, innerHeight);
+renderer.update_image_data(node);
+
+const imagePtr = renderer.image_data_ptr();
+const image_data_data = new Uint8ClampedArray(memory.buffer, imagePtr, canvas_width * canvas_height * 4);
+const image_data = new ImageData(image_data_data, canvas_width, canvas_height);
+
+context.putImageData(image_data, 0, 0);
 
 console.log("new population: ", node.population());
 
@@ -30,16 +45,9 @@ create.addEventListener("click", () => {
   console.log(node1.population());
   const items2 = Life.expand(node1, 0, 0);
   console.log(items2);
-
-  // Node.ffwd(node1, 10);
-  // console.log(node1.level());
-  // console.log(node1.population());
 })
 
 const forward = document.getElementById("forward");
-
-const items5 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];
-var node5 = Life.construct(items);
 
 forward.addEventListener("click", () => {
   for (let x = 0; x < 100; x++) {
@@ -48,113 +56,8 @@ forward.addEventListener("click", () => {
   }
 
   const items = Life.expand(node5, 0, 0);
-  console.log(items5);
-
-  // Node.ffwd(node1, 10);
-  // console.log(node1.level());
-  // console.log(node1.population());
+  console.log(items);
 })
-
-
-// function drawSquare(gl, x, y) {
-//     const positionBuffer = gl.createBuffer();
-//     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-//     const positions = [
-//         CELL_SIZE / 2 + x, CELL_SIZE / 2  - y,
-//         -CELL_SIZE / 2 + x, CELL_SIZE / 2 - y,
-//         CELL_SIZE / 2 + x, -CELL_SIZE / 2 - y,
-//         -CELL_SIZE / 2 + x, -CELL_SIZE / 2 - y,
-//     ];
-
-//     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-//     return {
-//         position: positionBuffer,
-//     };
-// };
-
-// const drawGrid = () => {
-//     ctx.beginPath();
-//     ctx.strokeStyle = GRID_COLOR;
-
-//     for (let x = 0; x <= width; x++) {
-//         ctx.moveTo(x * (CELL_SIZE + 1) + 1, 0);
-//         ctx.lineTo(x * (CELL_SIZE + 1) + 1, (CELL_SIZE + 1) * height + 1);
-//     }
-
-//     for (let y = 0; y <= height; y++) {
-//         ctx.moveTo(0, y * (CELL_SIZE + 1) + 1);
-//         ctx.lineTo((CELL_SIZE + 1) * width + 1, y * (CELL_SIZE + 1) + 1);
-//     }
-
-//     ctx.stroke();
-// };
-
-// const getIndex = (row, column) => {
-//     return row * width + column;
-// };
-// const bitIsSet = (n, arr) => {
-//     const byte = Math.floor(n / 8);
-//     const mask = 1 << (n % 8);
-//     return (arr[byte] & mask) === mask;
-// };
-
-// const drawCells = () => {
-//     const cellsPtr = universe.cells();
-//     const cells = new Uint8Array(memory.buffer, cellsPtr, width * height / 8);
-
-//     ctx.beginPath();
-
-//     ctx.fillStyle = ALIVE_COLOR;
-//     for (let row = 0; row < height; row++) {
-//         for (let col = 0; col < width; col++) {
-//             const idx = getIndex(row, col);
-//             if (bitIsSet(idx, cells)) continue;
-//             ctx.fillRect(
-//                 col * (CELL_SIZE + 1) + 1,
-//                 row * (CELL_SIZE + 1) + 1,
-//                 CELL_SIZE,
-//                 CELL_SIZE
-//             );
-//         }
-//     }
-//     ctx.fillStyle = DEAD_COLOR;
-//     for (let row = 0; row < height; row++) {
-//         for (let col = 0; col < width; col++) {
-//             const idx = getIndex(row, col);
-//             if (!bitIsSet(idx, cells)) continue;
-//             ctx.fillRect(
-//                 col * (CELL_SIZE + 1) + 1,
-//                 row * (CELL_SIZE + 1) + 1,
-//                 CELL_SIZE,
-//                 CELL_SIZE
-//             );
-//         }
-//     }
-//     ctx.stroke();
-// };
-
-// canvas.addEventListener("click", event => {
-//     const boundingRect = canvas.getBoundingClientRect();
-//     const scaleX = canvas.width / boundingRect.width;
-//     const scaleY = canvas.height / boundingRect.height;
-
-//     const canvasLeft = (event.clientX - boundingRect.left) * scaleX;
-//     const canvasTop = (event.clientY - boundingRect.top) * scaleY;
-
-//     const row = Math.min(Math.floor(canvasTop / (CELL_SIZE + 1)), height - 1);
-//     const col = Math.min(Math.floor(canvasLeft / (CELL_SIZE + 1)), width - 1);
-
-//     universe.toggle_cell(row, col);
-
-//     if (event.shiftKey) {
-//         universe.toggle_cell(row, col);
-//     }
-
-//     drawGrid();
-//     drawCells();
-// });
 
 const fps = new class {
     constructor() {

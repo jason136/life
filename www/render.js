@@ -1,6 +1,6 @@
 /** @constructor */
 function Renderer() {
-    var 
+    var
         /** @type {number} */
         canvas_offset_x = 0,
         /** @type {number} */
@@ -63,7 +63,7 @@ function Renderer() {
         }
     }
 
-    this.draw_node = (node, size, left, top) => {
+    function draw_node(node, size, left, top) {
         if (left + size + canvas_offset_x < 0 ||
             top + size + canvas_offset_y < 0 ||
             left + canvas_offset_x >= canvas_width ||
@@ -86,7 +86,7 @@ function Renderer() {
         }
     }
 
-    this.fill_square = (x, y, size) => {
+    function fill_square(x, y, size) {
         var width = size - border_width, 
             height = width;
 
@@ -122,8 +122,8 @@ function Renderer() {
         }
     }
 
-    this.redraw = () => {
-        var bg_color_rgb = color2rgb(background_color);
+    this.redraw = (node) => {
+        var bg_color_rgb = color2rgb(renderer.background_color);
         var bg_color_int = bg_color_rgb.r | bg_color_rgb.g << 8 | bg_color_rgb.b << 16 | 0xFF << 24;
 
         border_width = renderer.border_width * renderer.cell_width | 0;
@@ -142,7 +142,7 @@ function Renderer() {
         context.putImageData(image_data, 0, 0);
     }
 
-    this.zoom = (out, center_x, center_y) => {
+    function zoom(out, center_x, center_y) {
         if (out) {
             canvas_offset_x -= Math.round((canvas_width / 2 - center_x) * 0.5);
             canvas_offset_y -= Math.round((canvas_height / 2 - center_y) * 0.5);
@@ -225,7 +225,7 @@ function Renderer() {
         };
     }
 
-    this.color2rgb = (color) => {
+    function color2rgb(color) {
         if (color.length === 4) {
             return {
                 r: parseInt(color[1] + color[1], 16),

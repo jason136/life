@@ -63,10 +63,22 @@ pub struct Node {
     level: u8,
     hash: u64,
 }
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct Renderer {
+    width: u32,
+    height: u32,
+    center_x: i32,
+    center_y: i32,
+    zoom: f32,
+    image_data: Vec<u8>,
+}
+
 pub struct Life;
 
-static ON: Node = Node{ a: None, b: None, c: None, d: None, population: 1, level: 0, hash: 1 };
-static OFF: Node = Node{ a: None, b: None, c: None, d: None, population: 0, level: 0, hash: 0 };
+const ON: Node = Node{ a: None, b: None, c: None, d: None, population: 1, level: 0, hash: 1 };
+const OFF: Node = Node{ a: None, b: None, c: None, d: None, population: 0, level: 0, hash: 0 };
 
 trait OptionExt {
     fn hash(&self) -> u64;
@@ -288,7 +300,6 @@ impl Life {
             }
             node = successor(node, None);
         }
-        log(CALL_COUNT.load(Ordering::SeqCst).to_string().as_str());
 
         (*node.unwrap()).clone()
     }
@@ -379,6 +390,38 @@ impl Life {
         }
         (**pattern[&last_updated].as_ref().unwrap()).clone()
     }
+
+    pub fn renderer() -> Renderer {
+        Renderer {
+            width: 0,
+            height: 0,
+            center_x: 0,
+            center_y: 0,
+            zoom: 1.0,
+            image_data: vec![],
+        }
+    }
 }
 
-// https://johnhw.github.io/hashlife/index.md.html
+#[wasm_bindgen]
+impl Renderer {
+    pub fn image_data_ptr(&self) -> *const u8 {
+        self.image_data.as_ptr()
+    }
+
+    pub fn zoom(mut self, zoom: f32) {
+        self.zoom = zoom;
+    }
+    pub fn dimensions(mut self, width: u32, height: u32) {
+        self.width = width;
+        self.height = height;
+    }
+    pub fn center(mut self, x: i32, y: i32) {
+        self.center_x = x;
+        self.center_y = y;
+    }
+
+    pub fn update_image_data(mut self, node: Node) {
+        self.image_data = vec![0; (self.width * self.height * 4).try_into().unwrap()];
+    }
+}
