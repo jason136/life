@@ -23,11 +23,9 @@ const render = (node) => {
 
   console.log(`${canvas_width}, ${canvas_height}`)
 
-  renderer.set_zoom(1.0);
+  renderer.set_cell_width(100);
 
-  renderer.update_image_data(node);
-
-  const imagePtr = renderer.image_data_ptr();
+  const imagePtr = renderer.get_image_data(node);
 
   const image_data_array = new Uint8ClampedArray(memory.buffer, imagePtr, canvas_width * canvas_height * 4);
   console.log(image_data_array);
@@ -58,7 +56,7 @@ const renderLoop = () => {
 }
 
 render(node);
-requestAnimationFrame(renderLoop);
+//requestAnimationFrame(renderLoop);
 
 
 
