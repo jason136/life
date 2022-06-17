@@ -1,4 +1,4 @@
-import { init_panic_hook, Node, Life, Renderer } from "life";
+import { init_panic_hook, Life, Renderer } from "life";
 import { memory } from "life/life_bg";
 
 // import { Renderer } from "./render";
@@ -7,33 +7,59 @@ import { memory } from "life/life_bg";
 
 init_panic_hook();
 
-const canvas = document.getElementById("canvas");
-const context = canvas.getContext("2d");
-
-const canvas_width = canvas.width;
-const canvas_height = canvas.height;
-
-
-const items5 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];
-var node5 = Life.construct(items5);
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
 var renderer = Renderer.new();
-renderer.set_center(canvas_width / 2, canvas_height / 2);
-renderer.set_size(canvas_width, canvas_height);
-renderer.set_zoom(1.0);
 
-console.log(renderer);
+const render = (node) => {
 
-renderer.update_image_data(node5);
-const imagePtr = renderer.image_data_ptr();
+  const canvas_width = canvas.scrollWidth;
+  const canvas_height = canvas.scrollHeight;
 
-// const int32_data = new Int32Array(memory.buffer, imagePtr, canvas_width * canvas_height);
-// const image_data_data = new Uint8ClampedArray(int32_data.buffer);
-const image_data_data = new Uint8ClampedArray(memory.buffer, imagePtr, canvas_width * canvas_height);
-console.log(image_data_data);
-const image_data = new ImageData(image_data_data, canvas_width, canvas_height);
 
-context.putImageData(image_data, 0, 0);
+  renderer.set_center(canvas_width / 2, canvas_height / 2);
+  renderer.set_size(canvas_width, canvas_height);
+
+  console.log(`${canvas_width}, ${canvas_height}`)
+
+  renderer.set_zoom(1.0);
+
+  renderer.update_image_data(node);
+
+  const imagePtr = renderer.image_data_ptr();
+
+  const image_data_array = new Uint8ClampedArray(memory.buffer, imagePtr, canvas_width * canvas_height * 4);
+  console.log(image_data_array);
+
+  const image_data = new ImageData(image_data_array, canvas_width, canvas_height);
+
+  console.log(image_data);
+
+  console.log('put data');
+  ctx.putImageData(image_data, 0, 0);
+}
+
+
+const items = [1, 1, 1, 2, 2, 1, 2, 2, -1, -1, -2, -2, -3, -3]; 
+var node = Life.construct(items);
+
+const renderLoop = () => {
+
+  fps.render();
+  
+  console.log('generate successor');
+  node = Life.ffwd(node, 1);
+
+  console.log('render');
+  render(node);
+
+  requestAnimationFrame(renderLoop);
+}
+
+render(node);
+requestAnimationFrame(renderLoop);
+
 
 
 
@@ -52,12 +78,17 @@ create.addEventListener("click", () => {
 const forward = document.getElementById("forward");
 
 forward.addEventListener("click", () => {
+  const items5 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100, -100, 1000, 1000]; 
+  var node5 = Life.construct(items5);
+  var items = Life.expand(node5, 0, 0);
+  console.log(items);
+
   for (let x = 0; x < 100; x++) {
     node5 = Life.ffwd(node5, 10);
     console.log(node5.population());
   }
 
-  const items = Life.expand(node5, 0, 0);
+  items = Life.expand(node5, 0, 0);
   console.log(items);
 })
 

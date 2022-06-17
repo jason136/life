@@ -5,6 +5,24 @@ use crate::{
 };
 use std::sync::Arc;
 
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+
+    // The `console.log` is quite polymorphic, so we can bind it with multiple
+    // signatures. Note that we need to use `js_name` to ensure we always call
+    // `log` in JS.
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn log_u32(a: u32);
+
+    // Multiple arguments too!
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn log_many(a: &str, b: &str);
+}
+
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct Renderer {
@@ -77,6 +95,7 @@ impl Renderer {
         for _ in 0..height {
             for _ in 0..width {
                 self.image_data_u32[pointer as usize] = 0xFFFFFFFF;
+                log(format!("drawing {}", pointer).as_str());
                 pointer += 1;
             }
             pointer += row_width;
@@ -106,10 +125,10 @@ impl Renderer {
         }
     }
 
-    pub fn update_image_data(&mut self, node: Node) {
-        self.image_data_u32 = vec![0xFFFFFFFF; (self.canvas_width * self.canvas_height) as usize];
+    pub fn update_image_data(&mut self, node: &Node) {
+        self.image_data_u32 = vec![0x880022FF; (self.canvas_width * self.canvas_height) as usize];
         let size = 2_i32.pow(node.level() as u32 - 1) * self.cell_width;
-        self.draw_node(Some(Arc::new(node)), size, -size, -size);
+        self.draw_node(Some(Arc::new(node.clone())), size, -size, -size);
 
         self.image_data_u8 = self.image_data_u32.iter().flat_map(|val| val.to_be_bytes()).collect();
     }

@@ -65,11 +65,10 @@ pub struct Node {
     level: u8,
     hash: u64,
 }
-
 pub struct Life;
 
-const ON: Node = Node{ a: None, b: None, c: None, d: None, population: 1, level: 0, hash: 1 };
-const OFF: Node = Node{ a: None, b: None, c: None, d: None, population: 0, level: 0, hash: 0 };
+static ON: Node = Node{ a: None, b: None, c: None, d: None, population: 1, level: 0, hash: 1 };
+static OFF: Node = Node{ a: None, b: None, c: None, d: None, population: 0, level: 0, hash: 0 };
 
 trait OptionExt {
     fn hash(&self) -> u64;
@@ -277,10 +276,10 @@ impl Life {
         node
     }
     
-    pub fn ffwd(node: Node, n: u32) -> Node {
+    pub fn ffwd(node: &Node, n: u32) -> Node {
         CALL_COUNT.store(0, Ordering::SeqCst);
 
-        let mut node = Some(Arc::new(node));
+        let mut node = Some(Arc::new(node.clone()));
         for _ in 0..n {
             while node.level() < 3 || 
                 node.a().population() != node.a().d().d().population() ||
@@ -382,3 +381,5 @@ impl Life {
         (**pattern[&last_updated].as_ref().unwrap()).clone()
     }
 }
+
+// https://johnhw.github.io/hashlife/index.md.html
