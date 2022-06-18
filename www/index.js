@@ -39,7 +39,7 @@ const render = (node) => {
 }
 
 
-const items = [1, 1, 1, 2, 2, 1, 2, 2, -1, -1, -2, -2, -3, -3]; 
+const items = [-1, -1, -2, -2, -3, -3, 1, 1, 2, 2, 3, 3, -4, -4, -5, -5, -6, -6, -7, -7, -8, -8, -9, -9]; 
 var node = Life.construct(items);
 
 const renderLoop = () => {
@@ -52,11 +52,11 @@ const renderLoop = () => {
   console.log('render');
   render(node);
 
-  requestAnimationFrame(renderLoop);
+  // requestAnimationFrame(renderLoop);
 }
 
 render(node);
-//requestAnimationFrame(renderLoop);
+// requestAnimationFrame(renderLoop);
 
 
 
@@ -76,18 +76,7 @@ create.addEventListener("click", () => {
 const forward = document.getElementById("forward");
 
 forward.addEventListener("click", () => {
-  const items5 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100, -100, 1000, 1000]; 
-  var node5 = Life.construct(items5);
-  var items = Life.expand(node5, 0, 0);
-  console.log(items);
-
-  for (let x = 0; x < 100; x++) {
-    node5 = Life.ffwd(node5, 10);
-    console.log(node5.population());
-  }
-
-  items = Life.expand(node5, 0, 0);
-  console.log(items);
+  renderLoop();
 })
 
 const fps = new class {

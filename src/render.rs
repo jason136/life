@@ -91,15 +91,15 @@ impl Renderer {
         self.cell_width = width;
     }
 
-    fn draw_cell(&mut self, x: i32, y: i32, set: bool) {
-        let cell_x = x * self.cell_width + self.offset_x;
-        let cell_y = y * self.cell_width + self.offset_y;
-        let width = self.cell_width - (self.cell_width * self.border_width | 0 as i32);
+    // fn draw_cell(&mut self, x: i32, y: i32, set: bool) {
+    //     let cell_x = x * self.cell_width + self.offset_x;
+    //     let cell_y = y * self.cell_width + self.offset_y;
+    //     let width = self.cell_width - (self.cell_width * self.border_width | 0 as i32);
 
-        if set {
-            // TODO call draw_square with a way to set the color
-        }
-    }
+    //     if set {
+    //         // TODO call draw_square with a way to set the color
+    //     }
+    // }
 
     fn draw_square(&mut self, mut x: i32, mut y: i32, size: i32) {
 
@@ -132,7 +132,7 @@ impl Renderer {
         for _ in 0..height {
             for _ in 0..width {
                 self.image_data_pixels[pointer as usize] = 0xFFFFFFFF;
-                log(format!("{}", pointer).as_str());
+                // log(format!("{}", pointer).as_str());
                 pointer += 1;
 
                 CALL_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -171,7 +171,7 @@ impl Renderer {
     }
 
     pub fn get_image_data(&mut self, node: &Node) -> *const u8 {
-        self.image_data_pixels = vec![0x660000FF; (self.canvas_width * self.canvas_height) as usize];
+        self.image_data_pixels = vec![0x000000FF; (self.canvas_width * self.canvas_height) as usize];
 
         self.border_width = self.border_width * self.cell_width | 0 as i32;
         
