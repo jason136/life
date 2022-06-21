@@ -116,11 +116,22 @@ impl Renderer {
         self.canvas_offset_y = self.canvas_height >> 1;
     }
 
+    fn pixel_to_cell(&self, x: i32, y: i32) -> (i32, i32) {
+        (
+            ((x as f32 * self.pixel_ratio) as i32 - self.canvas_offset_x + self.border_width / 2) / self.cell_width as i32,
+            ((y as f32 * self.pixel_ratio) as i32 - self.canvas_offset_y + self.border_width / 2) / self.cell_width as i32
+        )
+    }
+
     pub fn get_size(&self) -> String {
         format!("{}, {}", self.canvas_width, self.canvas_height).into()
     }
+    pub fn log_properties(&self) -> String {
+        format!("offset: {}, {}. cell width: {}", self.canvas_offset_x, self.canvas_offset_y, self.cell_width) as String
+    }
 
     // pub fn fit_bounds(&mut self, )
+    // use convert to coords method to create bounds
 
     // fn draw_cell(&mut self, x: i32, y: i32, set: bool) {
     //     let cell_x = x * self.cell_width + self.canvas_offset_x;

@@ -34,6 +34,8 @@ const render = (node) => {
 
   console.log('put data');
   ctx.putImageData(image_data, 0, 0);
+
+  properties();
 }
 
 
@@ -63,7 +65,6 @@ render(node);
 const create = document.getElementById("create");
 create.addEventListener("click", () => {
   renderer.zoom_centered(false);
-  canvas_size();
   render(node);
 })
 
@@ -71,15 +72,13 @@ const forward = document.getElementById("forward");
 
 forward.addEventListener("click", () => {
   renderer.zoom_centered(true);
-  canvas_size();
   render(node);
 })
 
-const canvas_size = () => {
+function properties() {
   const label = document.getElementById("label");
   label.textContent = `
-        ${canvas_width}x${canvas_height}
-        ${renderer.get_size()}
+        ${renderer.log_properties()}
         `.trim();
 }
 
@@ -120,3 +119,58 @@ const fps = new class {
         `.trim();
     }
 };
+
+var last_mouse_x = null;
+var last_mouse_y = null;
+
+function drag(e) {
+  if (last_mouse_x !== null) {
+    let dx = Math.round(e.clientX - last_mouse_x);
+    let dy = Math.round(e.clientY - last_mouse_y);
+
+    renderer.move_offset(dx, dy);
+
+    last_mouse_x += dx;
+    last_mouse_y += dy;
+
+    render(node);
+  }
+}
+
+canvas.onmousedown = (e) => {
+  if(e.which === 3 || e.which === 2) {
+    if(drawer.cell_width >= 1) {
+      var coords = drawer.pixel2cell(e.clientX, e.clientY);
+
+      mouse_set = !life.get_bit(coords.x, coords.y);
+
+      window.addEventListener("mousemove", do_field_draw, true);
+      do_field_draw(e);
+    }
+  }
+  else if(e.which === 1) {
+    last_mouse_x = e.clientX;
+    last_mouse_y = e.clientY;
+    //console.log("start", e.clientX, e.clientY);
+
+    window.addEventListener("mousemove", drag, true);
+  }
+
+  return false;
+};
+
+canvas.onmouseup = () => {
+  last_mouse_x = null;
+  last_mouse_y = null;
+
+  window.removeEventListener("mousemove", drag, true);
+};
+
+canvas.onmousewheel = (e) => {
+  e.preventDefault();
+
+  renderer.zoom_at((e.wheelDelta || -e.detail) < 0, e.clientX, e.clientY);
+
+  render(node);
+  return false;
+}
