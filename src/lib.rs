@@ -383,3 +383,4 @@ impl Life {
 }
 
 // https://johnhw.github.io/hashlife/index.md.html
+// https://rustwasm.github.io/docs/book/game-of-life/implementing.html

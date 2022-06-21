@@ -1,8 +1,6 @@
 import { init_panic_hook, Life, Renderer } from "life";
 import { memory } from "life/life_bg";
 
-// import { Renderer } from "./render";
-
 // https://github.com/copy/life/blob/924c90afb529ad5d417f11d795bc1b400fff8d18/main.js
 
 init_panic_hook();
@@ -12,18 +10,18 @@ const ctx = canvas.getContext('2d');
 
 var renderer = Renderer.new();
 
+const canvas_width = canvas.scrollWidth;
+const canvas_height = canvas.scrollHeight;
+
+renderer.set_size(canvas_width, canvas_height, window.devicePixelRatio);
+renderer.zoom_to(2);
+
+console.log(`${canvas_width}, ${canvas_height}`);
+
+
 const render = (node) => {
-
-  const canvas_width = canvas.scrollWidth;
-  const canvas_height = canvas.scrollHeight;
-
-
-  renderer.set_center(canvas_width / 2, canvas_height / 2);
-  renderer.set_size(canvas_width, canvas_height);
-
-  console.log(`${canvas_width}, ${canvas_height}`)
-
-  renderer.set_cell_width(100);
+  ctx.canvas.width = window.innerWidth;
+  ctx.canvas.height = window.innerHeight;
 
   const imagePtr = renderer.get_image_data(node);
 
@@ -64,20 +62,26 @@ render(node);
 
 const create = document.getElementById("create");
 create.addEventListener("click", () => {
-  const items1 = [1, 1, 2, 2, 3, 3, 4, 4, -1, -1, -2, -2, -3, -3, -100000000, -100000000, 100000000, 100000000];
-  const node1 = Life.construct(items1);
-  console.log(node1.hash());
-  console.log(node1.level());
-  console.log(node1.population());
-  const items2 = Life.expand(node1, 0, 0);
-  console.log(items2);
+  renderer.zoom_centered(false);
+  canvas_size();
+  render(node);
 })
 
 const forward = document.getElementById("forward");
 
 forward.addEventListener("click", () => {
-  renderLoop();
+  renderer.zoom_centered(true);
+  canvas_size();
+  render(node);
 })
+
+const canvas_size = () => {
+  const label = document.getElementById("label");
+  label.textContent = `
+        ${canvas_width}x${canvas_height}
+        ${renderer.get_size()}
+        `.trim();
+}
 
 const fps = new class {
     constructor() {
