@@ -1,7 +1,8 @@
 <template>
   <div>
     <div id="fps"></div>
-    <canvas ref="Universe" style="width: 100% height: 100%"></canvas>
+    <Universe id="universe" :node="node" :renderer="renderer" :memory="memory"></Universe>
+    <p>{{  }}</p>
   </div>
 </template>
 
@@ -9,116 +10,38 @@
 import { init_panic_hook, Life, Renderer } from "life";
 import { memory } from "life/life_bg";
 
+import Universe from "../components/Universe.vue";
+
 export default {
-  name: 'app',
+    name: "app",
+    components: { Universe }, 
 
-  mounted() {
-    init_panic_hook();
-
-    const items = [-1, -1, -2, -2, -3, -3, 1, 1, 2, 2, 3, 3, -4, -4, -5, -5, -6, -6, -7, -7, -8, -8, -9, -9]; 
-    var node = Life.construct(items);
-
-    this.canvas = this.$refs['Universe'];
-    this.ctx = this.canvas.getContext('2d');
-
-    var renderer = Renderer.new();
-    renderer.zoom_to(2);
-
-    setInterval(() => {
-      this.canvas_width = window.innerWidth;
-      this.canvas_height = window.innerHeight;
-
-      this.canvas.width = this.canvas_width;
-      this.canvas.height = this.canvas_height;
-
-      console.log(`${this.canvas_width}, ${this.canvas_height}`);
-
-      renderer.set_size(this.canvas_width, this.canvas_height, window.devicePixelRatio);
-
-      const imagePtr = renderer.get_image_data(node);
-      const image_data_array = new Uint8ClampedArray(memory.buffer, imagePtr, this.canvas_width * this.canvas_height * 4);
-      const image_data = new ImageData(image_data_array, this.canvas_width, this.canvas_height);
+    data() {
+      init_panic_hook();
       
-      // console.log(image_data_array);
+      const items = [];
+      const node = Life.construct(items);
 
-      this.ctx.putImageData(image_data, 0, 0);
+      const renderer = Renderer.new();
 
-    }, 15);
-
-    var last_mouse_x = null;
-    var last_mouse_y = null;
-
-    function drag(e) {
-      if (last_mouse_x !== null) {
-        let dx = Math.round(e.clientX - last_mouse_x);
-        let dy = Math.round(e.clientY - last_mouse_y);
-
-        renderer.move_offset(dx, dy);
-
-        last_mouse_x += dx;
-        last_mouse_y += dy;
+      return {
+        node,
+        renderer,
+        memory
       }
-    }
+    },
 
-    this.canvas.onmousedown = (e) => {
-      if(e.which === 3 || e.which === 2) {
-        if(drawer.cell_width >= 1) {
-          var coords = drawer.pixel2cell(e.clientX, e.clientY);
+    mounted() {
 
-          mouse_set = !life.get_bit(coords.x, coords.y);
+      const items = [-1, -1, -2, -2, -3, -3, 1, 1, 2, 2, 3, 3, -4, -4, -5, -5, -6, -6, -7, -7, -8, -8, -9, -9];
+      const node = Life.construct(items);
 
-          window.addEventListener("mousemove", do_field_draw, true);
-          do_field_draw(e);
-        }
-      }
-      else if(e.which === 1) {
-        last_mouse_x = e.clientX;
-        last_mouse_y = e.clientY;
-        //console.log("start", e.clientX, e.clientY);
-
-        window.addEventListener("mousemove", drag, true);
-      }
-      return false;
-    };
-
-    this.canvas.onmouseup = () => {
-      last_mouse_x = null;
-      last_mouse_y = null;
-
-      window.removeEventListener("mousemove", drag, true);
-    };
-
-    this.canvas.onmousewheel = (e) => {
-      e.preventDefault();
-      renderer.zoom_at((e.wheelDelta || -e.detail) < 0, e.clientX, e.clientY);
-      return false;
-    }
-  },
+      $nuxt.$emit('updateNode', node);
+    },
 };
 
 </script>
 
 <style>
-body {
-  margin: 0 !important;
-  padding: 0 !important;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-#fps {
-  white-space: pre;
-  font-family: monospace;
-}
-#canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
+
 </style>

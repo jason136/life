@@ -71,13 +71,13 @@ impl Renderer {
     }
 
     pub fn zoom(&mut self, out: bool, center_x: i32, center_y: i32) {
-        if out {
+        if out && self.cell_width > 1 {
             self.canvas_offset_x -= (self.canvas_offset_x - center_x) / 2;
             self.canvas_offset_y -= (self.canvas_offset_y - center_y) / 2;
 
             self.cell_width /= 2;
         }
-        else {
+        else if !out {
             self.canvas_offset_x += self.canvas_offset_x - center_x;
             self.canvas_offset_y += self.canvas_offset_y - center_y;
 

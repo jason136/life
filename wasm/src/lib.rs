@@ -316,6 +316,10 @@ impl Life {
     }
 
     pub fn construct(pts: Vec<i32>) -> Node {
+        if pts.len() == 0 {
+            return (**get_zero(4).as_ref().unwrap()).clone()
+        }
+
         let mut x_vals = Vec::new();
         let mut y_vals = Vec::new();
         for n in 0..pts.len() {
