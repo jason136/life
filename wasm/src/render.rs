@@ -34,7 +34,8 @@ pub struct Renderer {
     canvas_offset_x: i32,
     canvas_offset_y: i32,
 
-    border_width: i32,
+    border_width: f32,
+    border_pixels: i32,
     cell_width: i32,
     pixel_ratio: f32,
 
@@ -55,8 +56,9 @@ impl Renderer {
             canvas_height: 0,
             canvas_offset_x: 0,
             canvas_offset_y: 0,
-            border_width: 1,
-            cell_width: 20,
+            border_width: 0.1,
+            border_pixels: 0,
+            cell_width: 32,
             pixel_ratio: 1.0,
             image_data_pixels: vec![],
             image_data_bytes: vec![],
@@ -71,11 +73,13 @@ impl Renderer {
     }
 
     pub fn zoom(&mut self, out: bool, center_x: i32, center_y: i32) {
-        if out && self.cell_width > 1 {
+        if out {
             self.canvas_offset_x -= (self.canvas_offset_x - center_x) / 2;
             self.canvas_offset_y -= (self.canvas_offset_y - center_y) / 2;
 
-            self.cell_width /= 2;
+            if self.cell_width > 1 {
+                self.cell_width /= 2;
+            }
         }
         else if !out {
             self.canvas_offset_x += self.canvas_offset_x - center_x;
@@ -114,12 +118,13 @@ impl Renderer {
     pub fn center_view(&mut self) {
         self.canvas_offset_x = self.canvas_width >> 1;
         self.canvas_offset_y = self.canvas_height >> 1;
+        // log(&format!("offsets: {}, {}   dimentions: {}, {}", self.canvas_offset_x, self.canvas_offset_y, self.canvas_width, self.canvas_height));
     }
 
     fn pixel_to_cell(&self, x: i32, y: i32) -> (i32, i32) {
         (
-            ((x as f32 * self.pixel_ratio) as i32 - self.canvas_offset_x + self.border_width / 2) / self.cell_width as i32,
-            ((y as f32 * self.pixel_ratio) as i32 - self.canvas_offset_y + self.border_width / 2) / self.cell_width as i32
+            (x as f32 * self.pixel_ratio - self.canvas_offset_x as f32 + self.border_width / 2.0).round() as i32 / self.cell_width,
+            (y as f32 * self.pixel_ratio - self.canvas_offset_y as f32 + self.border_width / 2.0).round() as i32 / self.cell_width
         )
     }
 
@@ -145,7 +150,7 @@ impl Renderer {
 
     fn draw_square(&mut self, mut x: i32, mut y: i32, size: i32) {
 
-        let mut width = size - self.border_width;
+        let mut width = size - self.border_pixels;
         let mut height = width;
 
         if x < 0 {
@@ -213,13 +218,12 @@ impl Renderer {
     pub fn get_image_data(&mut self, node: &Node) -> *const u8 {
         self.image_data_pixels = vec![self.background_color; (self.canvas_width * self.canvas_height) as usize];
 
-        self.border_width = self.border_width * self.cell_width | 0 as i32;
+        self.border_pixels = (self.border_width * self.cell_width as f32).round() as i32 | 0;
         
         let size = 2_i32.pow(node.level() as u32 - 1) * self.cell_width;
 
         CALL_COUNT.store(0, Ordering::SeqCst);
-        self.draw_node(Some(Arc::new(node.clone())), size, -size, -size);
-        log(format!("pixels drawn: {}", CALL_COUNT.load(Ordering::SeqCst).to_string().as_str()).as_str());
+        self.draw_node(Some(Arc::new(node.clone())), 2 * size, -size, -size);
 
         self.image_data_bytes = self.image_data_pixels.iter().flat_map(|val| val.to_be_bytes()).collect();
 
