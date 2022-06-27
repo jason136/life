@@ -37,7 +37,7 @@ export default {
 
     mounted() {
 
-      const items = [0, 1, 0, 2, 0, 3];
+      const items = [0, 0, 1, 1, 2, 1, 2, 0, 2, -1];
       const node = Life.construct(items);
 
       $nuxt.$emit('updateNode', node);

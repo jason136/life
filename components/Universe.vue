@@ -46,8 +46,9 @@ export default {
           this.renderer.center_view();
       });
 
-      this.$nuxt.$on('fastForward', ($event) => {
+      this.$nuxt.$on('advance', ($event) => {
           node = Life.advance(node, 1);
+          console.log(Life.expand(node, 0, 0))
       });
 
       this.$nuxt.$on('doOffset' , ($event) => {

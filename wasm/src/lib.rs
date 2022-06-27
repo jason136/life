@@ -105,7 +105,7 @@ impl Node {
 
 fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>) -> Option<Arc<Node>> {
     let hash_tuple = (a.hash(), b.hash(), c.hash(), d.hash());
-    if a.level() > 6 && JOINCACHE.lock().unwrap().contains_key(&hash_tuple) {
+    if a.level() > 3 && JOINCACHE.lock().unwrap().contains_key(&hash_tuple) {
         let n = JOINCACHE.lock().unwrap().get(&hash_tuple).unwrap().clone();
         return n;
     }
@@ -113,11 +113,11 @@ fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Opt
     let n_level = &a.level() + 1;
     let n_population: u32 = &a.population() + &b.population() + &c.population() + &d.population();
     let n_hash: u64 = (
+        u64::from(a.level()) + 2 +
         &a.hash() * 5131830419411 +
         &b.hash() * 3758991985019 +
         &c.hash() * 8973110871315 +
-        &d.hash() * 4318490180473 +
-        u64::from(a.level())
+        &d.hash() * 4318490180473
     ) & ((1 << 63) - 1);
 
     let n = Some(Arc::new(Node {
@@ -158,7 +158,7 @@ fn get_zero(k: u8) -> Option<Arc<Node>> {
 }
 
 fn center(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
-    let zero = get_zero(m.level() - 1);
+    let zero = get_zero(m.a().level());
     join (
         join(zero.clone(), zero.clone(), zero.clone(), m.a()),
         join(zero.clone(), zero.clone(), m.b(),zero.clone()),
@@ -167,139 +167,138 @@ fn center(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
     )
 }
 
-fn life(a: &Option<Arc<Node>>, b: &Option<Arc<Node>>, c: &Option<Arc<Node>>, d: &Option<Arc<Node>>, e: &Option<Arc<Node>>, 
-        f: &Option<Arc<Node>>, g: &Option<Arc<Node>>, h: &Option<Arc<Node>>, i: &Option<Arc<Node>>) -> Option<Arc<Node>> {
+fn life(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>, e: Option<Arc<Node>>, 
+        f: Option<Arc<Node>>, g: Option<Arc<Node>>, h: Option<Arc<Node>>, i: Option<Arc<Node>>) -> Option<Arc<Node>> {
     let mut outer = 0;
     for n in [a, b, c, d, f, g, h, i].iter() {
         outer += n.population();
     }
-    match outer {
-        3 => Some(Arc::new(ON.clone())),
-        2 => {
-            if e.population() > 0 && outer == 2 {
-                Some(Arc::new(ON.clone()))
-            }
-            else {
-                Some(Arc::new(OFF.clone()))
-            }
-        }
-        _ => Some(Arc::new(OFF.clone()))
+
+    if outer == 2 && e.population() > 0 {
+        return Some(Arc::new(ON.clone()));
+    }
+    else if outer == 3 {
+        return Some(Arc::new(ON.clone()));
+    }
+    else {
+        Some(Arc::new(OFF.clone()))
     }
 }
-fn life_4x4(m: &Option<Arc<Node>>) -> Option<Arc<Node>> {
-    let ab = life(&m.a().a(), &m.a().b(), &m.b().a(), &m.a().c(), &m.a().d(), &m.b().c(), &m.c().a(), &m.c().b(), &m.d().a()); 
-    let bc = life(&m.a().b(), &m.b().a(), &m.b().b(), &m.a().d(), &m.b().c(), &m.b().d(), &m.c().b(), &m.d().a(), &m.d().b()); 
-    let cb = life(&m.a().c(), &m.a().d(), &m.b().c(), &m.c().a(), &m.c().b(), &m.d().a(), &m.c().c(), &m.c().d(), &m.d().c()); 
-    let da = life(&m.a().d(), &m.b().c(), &m.b().d(), &m.c().b(), &m.d().a(), &m.d().b(), &m.c().d(), &m.d().c(), &m.d().d());
+fn life_4x4(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
+    let na = life(m.a().a(), m.a().b(), m.b().a(), m.a().c(), m.a().d(), m.b().c(), m.c().a(), m.c().b(), m.d().a());
+    let nb = life(m.a().b(), m.b().a(), m.b().b(), m.a().d(), m.b().c(), m.b().d(), m.c().b(), m.d().a(), m.d().b());
+    let nc = life(m.a().c(), m.a().d(), m.b().c(), m.c().a(), m.c().b(), m.d().a(), m.c().c(), m.c().d(), m.d().c());
+    let nd = life(m.a().d(), m.b().c(), m.b().d(), m.c().b(), m.d().a(), m.d().b(), m.c().d(), m.d().c(), m.d().d());
 
     join(
-        ab,
-        bc,
-        cb,
-        da,
+        na,
+        nb,
+        nc,
+        nd,
     )
 }
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-fn successor(m: Option<Arc<Node>>, j: Option<u8>) -> Option<Arc<Node>> {
+fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
 
     if m.population() == 0 {
         return m.a().clone()
     }
-    if m.level() == 2 {
-        return life_4x4(&m)
-    }
 
-    if SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
-        return SUCCESSORCACHE.lock().unwrap().get(&(m.hash(), j)).unwrap().clone();
-    }
+    // Successor cache causes incorrect behavior for now
+    // if SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
+    //     return SUCCESSORCACHE.lock().unwrap().get(&(m.hash(), j)).unwrap().clone();
+    // }
+
+    let s: Option<Arc<Node>>;
     
-    let nj = if j.is_none() {
-        Some(m.level() - 2)
-    } else {
-        Some(std::cmp::min(j.unwrap(), m.level() - 2))
-    };
+    if m.level() == 2 {
+        s = life_4x4(m.clone())
+    }
+    else {
+        j = if j.is_none() {
+            Some(m.level() - 2)
+        } else {
+            Some(std::cmp::min(j.unwrap(), m.level() - 2))
+        };
+    
+        let c1 = successor(join(m.a().a(), m.a().b(), m.a().c(), m.a().d()), j);
+        let c2 = successor(join(m.a().b(), m.b().a(), m.a().d(), m.b().c()), j);
+        let c3 = successor(join(m.b().a(), m.b().b(), m.b().c(), m.b().d()), j);
+        let c4 = successor(join(m.a().c(), m.a().d(), m.c().a(), m.c().b()), j);
+        let c5 = successor(join(m.a().d(), m.b().c(), m.c().b(), m.d().a()), j);
+        let c6 = successor(join(m.b().c(), m.b().d(), m.d().a(), m.d().b()), j);
+        let c7 = successor(join(m.c().a(), m.c().b(), m.c().c(), m.c().d()), j);
+        let c8 = successor(join(m.c().b(), m.d().a(), m.c().d(), m.d().c()), j);
+        let c9 = successor(join(m.d().a(), m.d().b(), m.d().c(), m.d().d()), j);
+    
+        s = if j.unwrap() < m.level() - 2 { 
+            join(
+                join(c1.d(), c2.c(), c4.b(), c5.a()),
+                join(c2.d(), c3.c(), c5.b(), c6.a()),
+                join(c4.d(), c5.c(), c7.b(), c8.a()),
+                join(c5.d(), c6.c(), c8.b(), c9.a())
+            ) } else { 
+            join(
+                successor(join(c1, c2.clone(), c4.clone(), c5.clone()), j),
+                successor(join(c2, c3, c5.clone(), c6.clone()), j),
+                successor(join(c4, c5.clone(), c7, c8.clone()), j),
+                successor(join(c5, c6, c8, c9), j),
+            )
+        };
+    }
 
-    let c1 = successor(join(m.a().a(), m.a().b(), m.a().c(), m.a().d()), nj);
-    let c2 = successor(join(m.a().b(), m.b().a(), m.a().d(), m.b().c()), nj);
-    let c3 = successor(join(m.b().a(), m.b().b(), m.b().c(), m.b().d()), nj);
-    let c4 = successor(join(m.a().c(), m.a().d(), m.c().a(), m.c().b()), nj);
-    let c5 = successor(join(m.a().d(), m.b().c(), m.c().b(), m.d().a()), nj);
-    let c6 = successor(join(m.b().c(), m.b().d(), m.d().a(), m.d().b()), nj);
-    let c7 = successor(join(m.c().a(), m.c().b(), m.c().c(), m.c().d()), nj);
-    let c8 = successor(join(m.c().b(), m.d().a(), m.c().d(), m.d().c()), nj);
-    let c9 = successor(join(m.d().a(), m.d().b(), m.d().c(), m.d().d()), nj);
-
-    let n = if nj.unwrap() < m.level() - 2 { 
-        join(
-        join(c1.d(), c2.c(), c4.b(), c5.a()),
-        join(c2.d(), c3.c(), c5.b(), c6.a()),
-        join(c4.d(), c5.c(), c7.b(), c8.a()),
-        join(c5.d(), c6.c(), c8.b(), c9.a())
-        ) } else { 
-        join(
-            successor(join(c1, c2.clone(), c4.clone(), c5.clone()), nj),
-            successor(join(c2, c3, c5.clone(), c6.clone()), nj),
-            successor(join(c4, c5.clone(), c7, c8.clone()), nj),
-            successor(join(c5, c6, c8, c9), nj)
-        )
-    };
-
-    SUCCESSORCACHE.lock().unwrap().insert((n.hash(), j), n.clone());
-    return n;
+    SUCCESSORCACHE.lock().unwrap().insert((s.hash(), j), s.clone());
+    return s;
 }
+
+// These can be impl of Node if need be.
+fn is_padded(node: Option<Arc<Node>>) -> bool {
+    return 
+        node.a().population() == node.a().d().d().population() &&
+        node.b().population() == node.b().c().c().population() &&
+        node.c().population() == node.c().b().b().population() &&
+        node.d().population() == node.d().a().a().population()
+}
+
+fn inner(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
+    return join(
+        node.a().d(),
+        node.b().c(),
+        node.c().b(),
+        node.d().a()
+    )
+}
+
+fn crop(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
+    if node.level() <= 3 || !is_padded(node.clone()) {
+        return node
+    }
+    else {
+        return crop(inner(node))
+    }
+}
+fn pad(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
+    if node.level() <= 3 || !is_padded(node.clone()) {
+        return pad(center(node))
+    }
+    else {
+        return node
+    }
+}
+
 
 #[wasm_bindgen]
 impl Life {
-    // not really used
-    pub fn advance(mut node: Node, mut n: u32) -> Node {
-        if n == 0 {
-            return node;
-        }
-    
-        let mut bits = Vec::new();
-        while n > 0 {
-            bits.push(n & 1);
-            n >>= 1;
-            node = (*center(Some(Arc::new(node))).unwrap()).clone();
-        }
-    
-        for (k, bit) in bits.iter().rev().enumerate() {
-            let j: u8 = (bits.iter().len() - k - 1).try_into().unwrap();
-            if bit != &0 {
-                node = (*successor(Some(Arc::new(node)), Some(j)).unwrap()).clone();
-            }
-        }
-        node
-    }
-    
-    pub fn ffwd(node: &Node, n: u32) -> Node {
-        CALL_COUNT.store(0, Ordering::SeqCst);
-
-        let mut node = Some(Arc::new(node.clone()));
-        for _ in 0..n {
-            while node.level() < 3 || 
-                node.a().population() != node.a().d().d().population() ||
-                node.b().population() != node.b().c().c().population() ||
-                node.c().population() != node.c().b().b().population() ||
-                node.d().population() != node.d().a().a().population() {
-                node = center(node);
-            }
-            node = successor(node, None);
-        }
-
-        (*node.unwrap()).clone()
-    }
-
     pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
         if node.population() == 0 {
             return Vec::new()
         }
 
-        let size = u32::pow(2, node.level().into());
+        let size = 2_u32.pow(node.level() as u32);
 
         if node.level() == 0 {
             return vec![x, y]
@@ -311,13 +310,13 @@ impl Life {
             new.append(&mut Life::expand(&node.b.as_ref().unwrap(), x + offset, y));
             new.append(&mut Life::expand(&node.c.as_ref().unwrap(), x, y + offset));
             new.append(&mut Life::expand(&node.d.as_ref().unwrap(), x + offset, y + offset));
-            new
+            return new
         }
     }
 
     pub fn construct(pts: Vec<i32>) -> Node {
-        if pts.len() == 0 {
-            return (**get_zero(4).as_ref().unwrap()).clone()
+        if pts.len() == 0 || pts.len() % 2 == 1 {
+            return (*get_zero(4).as_deref().unwrap()).clone()
         }
 
         let mut x_vals = Vec::new();
@@ -348,7 +347,6 @@ impl Life {
             let z = get_zero(k);
 
             while pattern.len() > 0 {
-
                 let (mut x, mut y) = pattern.iter().next().unwrap().0;
                 x = x - (x & 1);
                 y = y - (y & 1);
@@ -382,9 +380,88 @@ impl Life {
             pattern = next_level;
             k += 1;
         }
-        (**pattern[&last_updated].as_ref().unwrap()).clone()
+
+        return (*pad(pattern[&last_updated].clone()).as_deref().unwrap()).clone()
+    }
+
+    // has potential to be better than above but maybe not.
+    // pub fn construct1(pts: Vec<i32>) -> Node {
+    //     if pts.len() == 0 || pts.len() % 2 == 1 {
+    //         return (*get_zero(4).as_deref().unwrap()).clone()
+    //     }
+
+    //     let mut x_vals = Vec::new();
+    //     let mut y_vals = Vec::new();
+    //     for n in 0..pts.len() {
+    //         if n % 2 == 0 {
+    //             x_vals.push(pts[n]);
+    //         }
+    //         else {
+    //             y_vals.push(pts[n]);
+    //         }
+    //     }
+    //     let x_min = x_vals.iter().min().unwrap();
+    //     let y_min = y_vals.iter().min().unwrap();
+
+    //     let mut pattern: HashMap<(i32, i32), Option<Arc<Node>>> = std::collections::HashMap::new();
+    //     let mut k = 0;
+
+    //     while pattern.len() != 1 {
+    //         let next_level: HashMap<(i32, i32), Option<Arc<Node>>> = std::collections::HashMap::new();
+    //         let z = get_zero(k);
+
+    //         while pattern.len() > 0 {
+    //             let (mut x, mut y) = pattern.iter().next().unwrap().0;
+    //             x = x - (x & 1);
+    //             y = y - (y & 1);
+
+
+    //         }
+    //     }
+    // }
+
+    pub fn advance(mut node: Node, mut n: u32) -> Node {
+        if n == 0 {
+            return node;
+        }
+    
+        let mut bits = Vec::new();
+        while n > 0 {
+            bits.push(n & 1);
+            n >>= 1;
+            node = (*center(Some(Arc::new(node))).as_deref().unwrap()).clone();
+        }
+    
+        for (k, bit) in bits.iter().rev().enumerate() {
+            let j: u8 = (bits.iter().len() - k - 1).try_into().unwrap();
+            if bit != &0 {
+                node = (*successor(Some(Arc::new(node)), Some(j)).unwrap()).clone();
+            }
+        }
+        log(format!("{:?}", CALL_COUNT.load(Ordering::SeqCst)).as_str());
+        CALL_COUNT.store(0, Ordering::SeqCst);
+
+        // return node;
+        return (*crop(Some(Arc::new(node))).as_deref().unwrap()).clone()
+    }
+    
+    // needs revision, don't use for now.
+    pub fn ffwd(node: &Node, n: u32) -> Node {
+        let mut node = Some(Arc::new(node.clone()));
+        for _ in 0..n {
+            while node.level() < 3 || 
+                node.a().population() != node.a().d().d().population() ||
+                node.b().population() != node.b().c().c().population() ||
+                node.c().population() != node.c().b().b().population() ||
+                node.d().population() != node.d().a().a().population() {
+                node = center(node);
+            }
+            node = successor(node, None);
+        }
+
+        return (*node.unwrap()).clone()
     }
 }
 
-// https://johnhw.github.io/hashlife/index.md.html
+// https://github.com/johnhw/hashlife/blob/master/hashlife.py
 // https://rustwasm.github.io/docs/book/game-of-life/implementing.html

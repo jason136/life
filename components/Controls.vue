@@ -24,7 +24,7 @@
           <button id='' v-on:click="$nuxt.$emit('centerView', true)">center</button>
         </li>
         <li>
-          <button id='' v-on:click="$nuxt.$emit('fastForward', 1)">forward</button>
+          <button id='' v-on:click="$nuxt.$emit('advance', 1)">forward</button>
         </li>
       </ul>
     </nav>

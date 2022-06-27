@@ -81,7 +81,7 @@ impl Renderer {
                 self.cell_width /= 2;
             }
         }
-        else if !out {
+        else {
             self.canvas_offset_x += self.canvas_offset_x - center_x;
             self.canvas_offset_y += self.canvas_offset_y - center_y;
 
