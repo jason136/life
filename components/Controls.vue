@@ -44,13 +44,13 @@ export default {
     --primary-color: #00c58e;
 }
 
-body {
+/* body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
   Helvetica Neue, Arial, Noto Sans, sans-serif, Apple Color Emoji,
   Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   margin: 0;
   background-color: rgb(23, 24, 28);
-}
+} */
 
 a,
 a:visited {

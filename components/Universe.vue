@@ -37,6 +37,8 @@ export default {
 
           this.ctx.putImageData(image_data, 0, 0);
           this.diag = `${this.renderer.log_properties()}   dimentions: ${this.renderer.get_size()}`;
+
+          // $nuxt.$emit('advance', 1);
       }, 15);
 
       this.$nuxt.$on('updateNode', ($event) => {

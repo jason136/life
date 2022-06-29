@@ -1,6 +1,13 @@
 use wasm_bindgen::prelude::*;
 
 mod render;
+mod parser;
+
+#[macro_use]
+extern crate lazy_static;
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::sync::Arc;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -32,27 +39,20 @@ pub fn init_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
-#[macro_use]
-extern crate lazy_static;
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::sync::Arc;
-
 lazy_static! {
-    static ref JOINCACHE: Mutex<HashMap<(u64, u64, u64, u64), Option<Arc<Node>>>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
+    // static ref JOINCACHE: Mutex<HashMap<(u64, u64, u64, u64), Option<Arc<Node>>>> = {
+    //     let m = HashMap::new();
+    //     Mutex::new(m)
+    // };
     static ref ZEROCACHE: Mutex<HashMap<u8, Option<Arc<Node>>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
-    static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u8>), Option<Arc<Node>>>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
+    // static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u8>), Option<Arc<Node>>>> = {
+    //     let m = HashMap::new();
+    //     Mutex::new(m)
+    // };
 }
-// note: memoize only for larger inputs
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
@@ -104,11 +104,11 @@ impl Node {
 }
 
 fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>) -> Option<Arc<Node>> {
-    let hash_tuple = (a.hash(), b.hash(), c.hash(), d.hash());
-    if a.level() > 3 && JOINCACHE.lock().unwrap().contains_key(&hash_tuple) {
-        let n = JOINCACHE.lock().unwrap().get(&hash_tuple).unwrap().clone();
-        return n;
-    }
+    // let hash_tuple = (a.hash(), b.hash(), c.hash(), d.hash());
+    // if a.level() > 3 && JOINCACHE.lock().unwrap().contains_key(&hash_tuple) {
+    //     let n = JOINCACHE.lock().unwrap().get(&hash_tuple).unwrap().clone();
+    //     return n;
+    // }
 
     let n_level = &a.level() + 1;
     let n_population: u32 = &a.population() + &b.population() + &c.population() + &d.population();
@@ -130,7 +130,7 @@ fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Opt
         hash: n_hash,
     }));
 
-    JOINCACHE.lock().unwrap().insert(hash_tuple, n.clone());
+    // JOINCACHE.lock().unwrap().insert(hash_tuple, n.clone());
     return n
 }
 
@@ -155,16 +155,6 @@ fn get_zero(k: u8) -> Option<Arc<Node>> {
 
     ZEROCACHE.lock().unwrap().insert(k, n.clone());
     return n;
-}
-
-fn center(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
-    let zero = get_zero(m.a().level());
-    join (
-        join(zero.clone(), zero.clone(), zero.clone(), m.a()),
-        join(zero.clone(), zero.clone(), m.b(),zero.clone()),
-        join(zero.clone(), m.c(), zero.clone(),zero.clone()),
-        join(m.d(), zero.clone(), zero.clone(),zero),
-    )
 }
 
 fn life(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>, e: Option<Arc<Node>>, 
@@ -205,18 +195,18 @@ fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
 
     if m.population() == 0 {
-        return m.a().clone()
+        return m.a();
     }
 
     // Successor cache causes incorrect behavior for now
-    // if SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
+    // if m.level() > 3 && SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
     //     return SUCCESSORCACHE.lock().unwrap().get(&(m.hash(), j)).unwrap().clone();
     // }
 
     let s: Option<Arc<Node>>;
     
     if m.level() == 2 {
-        s = life_4x4(m.clone())
+        s = life_4x4(m.clone());
     }
     else {
         j = if j.is_none() {
@@ -240,22 +230,21 @@ fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
                 join(c1.d(), c2.c(), c4.b(), c5.a()),
                 join(c2.d(), c3.c(), c5.b(), c6.a()),
                 join(c4.d(), c5.c(), c7.b(), c8.a()),
-                join(c5.d(), c6.c(), c8.b(), c9.a())
+                join(c5.d(), c6.c(), c8.b(), c9.a()),
             ) } else { 
             join(
-                successor(join(c1, c2.clone(), c4.clone(), c5.clone()), j),
-                successor(join(c2, c3, c5.clone(), c6.clone()), j),
-                successor(join(c4, c5.clone(), c7, c8.clone()), j),
-                successor(join(c5, c6, c8, c9), j),
+                successor(join(c1.clone(), c2.clone(), c4.clone(), c5.clone()), j),
+                successor(join(c2.clone(), c3.clone(), c5.clone(), c6.clone()), j),
+                successor(join(c4.clone(), c5.clone(), c7.clone(), c8.clone()), j),
+                successor(join(c5.clone(), c6.clone(), c8.clone(), c9.clone()), j),
             )
         };
     }
 
-    SUCCESSORCACHE.lock().unwrap().insert((s.hash(), j), s.clone());
+    // SUCCESSORCACHE.lock().unwrap().insert((m.hash(), j), s.clone());
     return s;
 }
 
-// These can be impl of Node if need be.
 fn is_padded(node: Option<Arc<Node>>) -> bool {
     return 
         node.a().population() == node.a().d().d().population() &&
@@ -271,6 +260,16 @@ fn inner(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
         node.c().b(),
         node.d().a()
     )
+}
+
+fn center(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
+    let z = get_zero(m.a().level());
+    return join(
+        join(z.clone(), z.clone(), z.clone(), m.a()), 
+        join(z.clone(), z.clone(), m.b(), z.clone()), 
+        join(z.clone(), m.c(), z.clone(), z.clone()), 
+        join(m.d(), z.clone(), z.clone(), z),
+    );
 }
 
 fn crop(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
@@ -289,7 +288,6 @@ fn pad(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
         return node
     }
 }
-
 
 #[wasm_bindgen]
 impl Life {
@@ -381,7 +379,7 @@ impl Life {
             k += 1;
         }
 
-        return (*pad(pattern[&last_updated].clone()).as_deref().unwrap()).clone()
+        return (*pad(pattern[&last_updated].clone()).unwrap()).clone()
     }
 
     // has potential to be better than above but maybe not.
@@ -420,31 +418,38 @@ impl Life {
     //     }
     // }
 
-    pub fn advance(mut node: Node, mut n: u32) -> Node {
+    pub fn advance(node: Node, mut n: u32) -> Node {
         if n == 0 {
-            return node;
+            return node
         }
+
+        let mut node_arc = Some(Arc::new(node));
     
+        log(format!("before binary: {:?}", node_arc.level()).as_str());
         let mut bits = Vec::new();
         while n > 0 {
             bits.push(n & 1);
-            n >>= 1;
-            node = (*center(Some(Arc::new(node))).as_deref().unwrap()).clone();
+            n = n >> 1;
+            node_arc = center(node_arc);
         }
-    
+        log(format!("after binary: {:?}", node_arc.level()).as_str());
+
         for (k, bit) in bits.iter().rev().enumerate() {
             let j: u8 = (bits.iter().len() - k - 1).try_into().unwrap();
             if bit != &0 {
-                node = (*successor(Some(Arc::new(node)), Some(j)).unwrap()).clone();
+                node_arc = successor(pad(node_arc), Some(j));
             }
         }
+
+        log(format!("after successor: {:?}", node_arc.level()).as_str());
+
         log(format!("{:?}", CALL_COUNT.load(Ordering::SeqCst)).as_str());
         CALL_COUNT.store(0, Ordering::SeqCst);
 
-        // return node;
-        return (*crop(Some(Arc::new(node))).as_deref().unwrap()).clone()
+        // return (*node_arc.unwrap()).clone()
+        return (*crop(node_arc).unwrap()).clone()
     }
-    
+
     // needs revision, don't use for now.
     pub fn ffwd(node: &Node, n: u32) -> Node {
         let mut node = Some(Arc::new(node.clone()));
@@ -461,6 +466,10 @@ impl Life {
 
         return (*node.unwrap()).clone()
     }
+
+    // pub fn equals(a: &Node, b: &Node) -> bool {
+    //     return a == b
+    // }
 }
 
 // https://github.com/johnhw/hashlife/blob/master/hashlife.py
