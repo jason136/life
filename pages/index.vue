@@ -3,6 +3,9 @@
     <div id='container'>
       <Universe id='universe' :node='node' :renderer='renderer' :memory='memory' :life='Life'></Universe>
       <Controls id='controls'></Controls>
+
+      <textarea v-model="message" placeholder="rle goes here"></textarea>
+      <button v-on:click="loadRLE(message)">submit</button>
     </div>
     <p>{{  }}</p>
   </div>
@@ -31,7 +34,9 @@ export default {
         node,
         renderer,
         memory, 
-        Life
+        Life,
+
+        message: '',
       }
     },
 
@@ -52,8 +57,19 @@ export default {
       const items = [0, 0, 1, 0, 2, 0, 4, 0, 0, 1, 3, 2, 4, 2, 1, 3, 2, 3, 4, 3, 0, 4, 2, 4, 4, 4]
 
       const node = Life.construct(items);
-
+      console.log(Life.convert_rle(Life.expand(node)));
       $nuxt.$emit('updateNode', node);
+    },
+
+    methods: {
+      loadRLE(message) {
+        const items = Life.parse_rle(message);
+        const node = Life.construct(items);
+        console.log(items);
+        console.log(node);
+        console.log(node.hash());
+        $nuxt.$emit('updateNode', node);
+      }
     },
 };
 </script>
