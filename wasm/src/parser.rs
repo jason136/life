@@ -22,11 +22,13 @@ extern "C" {
     fn log_many(a: &str, b: &str);
 }
 
-fn to_rle(pts: Vec<(i32, i32)>) -> (String, (i32, i32)) {
+fn to_rle(mut pts: Vec<(i32, i32)>) -> (String, (i32, i32)) {
     let max_x = pts.iter().map(|p| p.0).max().unwrap();
-    let min_x = pts.iter().map(|p| p.0).min().unwrap();
     let max_y = pts.iter().map(|p| p.1).max().unwrap();
+    let min_x = pts.iter().map(|p| p.0).min().unwrap();
     let min_y = pts.iter().map(|p| p.1).min().unwrap();
+
+    pts.sort_by(|a, b| (&a.1).cmp(&b.1));
 
     let mut line = 0;
     let mut x = 0;
@@ -37,14 +39,14 @@ fn to_rle(pts: Vec<(i32, i32)>) -> (String, (i32, i32)) {
         if stars == 1 {
             out.push("o".to_string());
         }
-        if stars > 1 {
+        else if stars > 1 {
             out.push(format!("{}o", stars));
         }
         return out
     }
 
     for pt in pts.iter() {
-        let pt = &(pt.0 - min_x, pt.1 - min_y);
+        let pt = (pt.0 - min_x, pt.1 - min_y);
 
         if pt.1 != line {
             out = flush_stars(stars, out);
@@ -93,13 +95,11 @@ fn to_rle(pts: Vec<(i32, i32)>) -> (String, (i32, i32)) {
 impl Life {
     pub fn parse_rle(rle: String) -> Vec<i32> {
         let lines = rle.split("\n");
-
         let mut positions: Vec<i32> = Vec::new();
-
         let mut x: i32 = 0;
         let mut y: i32 = 0;
-
         let mut complete = false;
+
         for line in lines {
             let line = line.trim();
             if line.len() == 0 {
@@ -107,12 +107,29 @@ impl Life {
             }
             else if complete {
                 // comments
-            }
-            else if line.starts_with("#") {
-                // comments
                 continue;
             }
+            else if line.starts_with("#") {    
+                if "cCoOnN".contains(line.chars().nth(1).unwrap()) {
+                    // comments
+                    continue;
+                }
+                else if "pP".contains(line.chars().nth(1).unwrap()) {
+                    let coords = line[2..].to_string();
+                    for p in coords.chars() {
+                        if p.is_digit(10) {
+                            if x == 0 {
+                                x = p.to_digit(10).unwrap() as i32;
+                            }
+                            else {
+                                y = p.to_digit(10).unwrap() as i32;
+                            }
+                        }
+                    }
+                }
+            }
             else if line.starts_with("x") {
+                // size is not needed
                 continue;
             }
             else {
@@ -120,46 +137,26 @@ impl Life {
 
                 for char in line.chars() {
                     if char.is_digit(10) {
-                        log(&format!("digit: {}", char));
                         count *= 10;
-                        count += char as i32;
+                        count += char.to_string().parse::<i32>().unwrap();
                         continue;
                     }
-                    
+
+                    count = if count == 0 { 1 } else { count };
                     match char.to_lowercase().next().unwrap() {
                         'b' => {
-                            if count != 0 {
-                                x += count;
-                            }
-                            else {
-                                x += 1;
-                            }
-                            count = 0;
+                            x += count;
                         }
                         'o' => {
-                            if count != 0 {
-                                for _ in 0..count {
-                                    positions.push(x);
-                                    positions.push(y);
-                                    x += 1;
-                                }
-                            }
-                            else {
+                            for _ in 0..count {
                                 positions.push(x);
                                 positions.push(y);
                                 x += 1;
                             }
-                            count = 0;
                         }
                         '$' => {
-                            if count != 0 {
-                                y += count;
-                            }
-                            else {
-                                y += 1;
-                            }
+                            y += count;
                             x = 0;
-                            count = 0;
                         }
                         '!' => {
                             complete = true;
@@ -169,6 +166,7 @@ impl Life {
                             panic!("Unknown character: {}", char);
                         }
                     }
+                    count = 0;
                 }
             }
         }
@@ -176,10 +174,14 @@ impl Life {
         return positions;
     }
 
-    pub fn convert_rle(pts: Vec<i32>) -> String {
+    pub fn convert_rle(pts: Vec<i32>, comment_string: String) -> String {
         let (rle, (x, y)) = to_rle(pts.chunks(2).map(|c| (c[0], c[1])).collect());
         let mut output = Vec::new();
 
+        let comments = comment_string.split("\n");
+        for comment in comments {
+            output.push(format!("#C {}", comment));
+        }
         output.push(format!("x = {}, y = {}\n", x, y));
 
         let mut wrapped = "".to_string();

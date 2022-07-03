@@ -289,27 +289,36 @@ fn pad(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
     }
 }
 
+fn expand_recurse(node: &Node, x: i32, y: i32) -> Vec<i32> {
+    if node.population() == 0 {
+        return Vec::new()
+    }
+
+    let size = 2_u32.pow(node.level() as u32);
+
+    if node.level() == 0 {
+        return vec![x, y]
+    }
+    else {
+        let offset = (size >> 1) as i32;
+        let mut output = Vec::new();
+        output.append(&mut expand_recurse(&node.a.as_ref().unwrap(), x, y));
+        output.append(&mut expand_recurse(&node.b.as_ref().unwrap(), x + offset, y));
+        output.append(&mut expand_recurse(&node.c.as_ref().unwrap(), x, y + offset));
+        output.append(&mut expand_recurse(&node.d.as_ref().unwrap(), x + offset, y + offset));
+        return output
+    }
+}
+
 #[wasm_bindgen]
 impl Life {
     pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
-        if node.population() == 0 {
-            return Vec::new()
-        }
-
-        let size = 2_u32.pow(node.level() as u32);
-
-        if node.level() == 0 {
-            return vec![x, y]
-        }
-        else {
-            let offset = (size >> 1) as i32;
-            let mut new = Vec::new();
-            new.append(&mut Life::expand(&node.a.as_ref().unwrap(), x, y));
-            new.append(&mut Life::expand(&node.b.as_ref().unwrap(), x + offset, y));
-            new.append(&mut Life::expand(&node.c.as_ref().unwrap(), x, y + offset));
-            new.append(&mut Life::expand(&node.d.as_ref().unwrap(), x + offset, y + offset));
-            return new
-        }
+        let mut output = expand_recurse(&node, x, y);
+        let min_x = output.chunks(2).map(|c| c[0]).min().unwrap();
+        let min_y = output.chunks(2).map(|c| c[1]).min().unwrap();
+        let min = std::cmp::min(min_x, min_y);
+        output = output.iter().map(|c| c - min).collect();
+        return output
     }
 
     pub fn construct(pts: Vec<i32>) -> Node {
@@ -317,23 +326,15 @@ impl Life {
             return (*get_zero(4).as_deref().unwrap()).clone()
         }
 
-        let mut x_vals = Vec::new();
-        let mut y_vals = Vec::new();
-        for n in 0..pts.len() {
-            if n % 2 == 0 {
-                x_vals.push(pts[n]);
-            }
-            else {
-                y_vals.push(pts[n]);
-            }
-        }
-        let x_min = x_vals.iter().min().unwrap();
-        let y_min = y_vals.iter().min().unwrap();
-        
-        let mut pattern = std::collections::HashMap::new();
+        let x_vals: Vec::<i32> = pts.chunks(2).map(|c| c[0]).collect();
+        let y_vals: Vec::<i32> = pts.chunks(2).map(|c| c[1]).collect();
+        let min_x = x_vals.iter().min().unwrap();
+        let min_y = y_vals.iter().min().unwrap();
+
+        let mut pattern: HashMap<(i32, i32), Option<Arc<Node>>> = std::collections::HashMap::new();
         for n in 0..x_vals.len() {
             pattern.insert(
-                (x_vals[n] - x_min, y_vals[n] - y_min),
+                (x_vals[n] - min_x, y_vals[n] - min_y),
                 Some(Arc::new(ON.clone()))
             );
         }
@@ -381,42 +382,6 @@ impl Life {
 
         return (*pad(pattern[&last_updated].clone()).unwrap()).clone()
     }
-
-    // has potential to be better than above but maybe not.
-    // pub fn construct1(pts: Vec<i32>) -> Node {
-    //     if pts.len() == 0 || pts.len() % 2 == 1 {
-    //         return (*get_zero(4).as_deref().unwrap()).clone()
-    //     }
-
-    //     let mut x_vals = Vec::new();
-    //     let mut y_vals = Vec::new();
-    //     for n in 0..pts.len() {
-    //         if n % 2 == 0 {
-    //             x_vals.push(pts[n]);
-    //         }
-    //         else {
-    //             y_vals.push(pts[n]);
-    //         }
-    //     }
-    //     let x_min = x_vals.iter().min().unwrap();
-    //     let y_min = y_vals.iter().min().unwrap();
-
-    //     let mut pattern: HashMap<(i32, i32), Option<Arc<Node>>> = std::collections::HashMap::new();
-    //     let mut k = 0;
-
-    //     while pattern.len() != 1 {
-    //         let next_level: HashMap<(i32, i32), Option<Arc<Node>>> = std::collections::HashMap::new();
-    //         let z = get_zero(k);
-
-    //         while pattern.len() > 0 {
-    //             let (mut x, mut y) = pattern.iter().next().unwrap().0;
-    //             x = x - (x & 1);
-    //             y = y - (y & 1);
-
-
-    //         }
-    //     }
-    // }
 
     pub fn advance(node: Node, mut n: u32) -> Node {
         if n == 0 {
