@@ -43,9 +43,6 @@ pub struct Renderer {
     image_data_bytes: Vec<u8>,
 }
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-
 #[wasm_bindgen]
 impl Renderer {
     pub fn new() -> Renderer {
@@ -180,8 +177,6 @@ impl Renderer {
             for _ in 0..width {
                 self.image_data_pixels[pointer as usize] = self.cell_color;
                 pointer += 1;
-
-                CALL_COUNT.fetch_add(1, Ordering::SeqCst);
             }
             pointer += row_width;
         }
@@ -217,17 +212,12 @@ impl Renderer {
 
     pub fn get_image_data(&mut self, node: &Node) -> *const u8 {
         self.image_data_pixels = vec![self.background_color; (self.canvas_width * self.canvas_height) as usize];
-
         self.border_pixels = (self.border_width * self.cell_width as f32).round() as i32 | 0;
         
         let size = 2_i32.pow(node.level() as u32 - 1) * self.cell_width;
-
-        CALL_COUNT.store(0, Ordering::SeqCst);
         self.draw_node(Some(Arc::new(node.clone())), 2 * size, -size, -size);
-
         self.image_data_bytes = self.image_data_pixels.iter().flat_map(|val| val.to_be_bytes()).collect();
 
-
-        self.image_data_bytes.as_ptr()
+        return self.image_data_bytes.as_ptr()
     }
 }

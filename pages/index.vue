@@ -7,7 +7,6 @@
       <textarea v-model="pattern" placeholder="rle goes here"></textarea>
       <button v-on:click="loadRLE(pattern)">submit</button>
     </div>
-    <p>{{  }}</p>
   </div>
 </template>
 
@@ -23,13 +22,11 @@ export default {
     components: { Universe, Controls }, 
 
     data() {
-      init_panic_hook();
-      
       const items = [];
       const node = Life.construct(items);
 
       const renderer = Renderer.new();
-
+      
       return {
         node,
         renderer,
@@ -38,6 +35,10 @@ export default {
 
         pattern: '',
       }
+    },
+
+    beforeCreate() {
+      init_panic_hook();
     },
 
     mounted() {
@@ -60,6 +61,7 @@ export default {
       console.log(node.level());
       console.log(Life.expand(node));
       console.log(Life.convert_rle(Life.expand(node), 'gosper gun'));
+    
       $nuxt.$emit('updateNode', node);
     },
 
@@ -67,9 +69,9 @@ export default {
       loadRLE(pattern) {
         const items = Life.parse_rle(pattern);
         const node = Life.construct(items);
-        console.log(items);
-        console.log(node);
-        console.log(Life.convert_rle(Life.expand(node), 'gosper gun'));
+        // console.log(items);
+        // console.log(node);
+        // console.log(Life.convert_rle(Life.expand(node), 'gosper gun'));
         $nuxt.$emit('updateNode', node);
       }
     },

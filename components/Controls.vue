@@ -24,7 +24,11 @@
           <button id='' v-on:click="$nuxt.$emit('centerView', true)">center</button>
         </li>
         <li>
-          <button id='' v-on:click="$nuxt.$emit('advance', 1)">forward</button>
+          <button id='' v-on:click="$nuxt.$emit('advance', 1)">step</button>
+        </li>
+        <li>
+          <button id='' v-if="playing" v-on:click="$nuxt.$emit('playing', false); playing = false;">pause</button>
+          <button id='' v-else v-on:click="$nuxt.$emit('playing', true); playing = true;">play</button>
         </li>
       </ul>
     </nav>
@@ -33,9 +37,14 @@
 
 <script>
 export default {
-    mounted() {
+  data() {
+    return {
+      playing: false,
+    }
+  },
+  mounted() {
 
-    },
+  },
 };
 </script>
 

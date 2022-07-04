@@ -40,18 +40,18 @@ pub fn init_panic_hook() {
 }
 
 lazy_static! {
-    // static ref JOINCACHE: Mutex<HashMap<(u64, u64, u64, u64), Option<Arc<Node>>>> = {
-    //     let m = HashMap::new();
-    //     Mutex::new(m)
-    // };
+    static ref JOINCACHE: Mutex<HashMap<(u64, u64, u64, u64), Option<Arc<Node>>>> = {
+        let m = HashMap::new();
+        Mutex::new(m)
+    };
     static ref ZEROCACHE: Mutex<HashMap<u8, Option<Arc<Node>>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
-    // static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u8>), Option<Arc<Node>>>> = {
-    //     let m = HashMap::new();
-    //     Mutex::new(m)
-    // };
+    static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u8>), Option<Arc<Node>>>> = {
+        let m = HashMap::new();
+        Mutex::new(m)
+    };
 }
 
 #[derive(Debug, Clone)]
@@ -84,10 +84,10 @@ impl OptionExt for Option<Arc<Node>> {
     fn hash(&self) -> u64 { self.as_ref().unwrap().hash }
     fn population(&self) -> u32 { self.as_ref().unwrap().population }
     fn level(&self) -> u8 { self.as_ref().unwrap().level }
-    fn a(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().as_ref().a.clone() }
-    fn b(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().as_ref().b.clone() }
-    fn c(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().as_ref().c.clone() }
-    fn d(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().as_ref().d.clone() }
+    fn a(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().a.clone() }
+    fn b(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().b.clone() }
+    fn c(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().c.clone() }
+    fn d(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().d.clone() }
 }
 
 #[wasm_bindgen]
@@ -106,8 +106,7 @@ impl Node {
 fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>) -> Option<Arc<Node>> {
     // let hash_tuple = (a.hash(), b.hash(), c.hash(), d.hash());
     // if a.level() > 3 && JOINCACHE.lock().unwrap().contains_key(&hash_tuple) {
-    //     let n = JOINCACHE.lock().unwrap().get(&hash_tuple).unwrap().clone();
-    //     return n;
+    //     return JOINCACHE.lock().unwrap().get(&hash_tuple).unwrap().clone()
     // }
 
     let n_level = &a.level() + 1;
@@ -198,10 +197,9 @@ fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
         return m.a();
     }
 
-    // Successor cache causes incorrect behavior for now
-    // if m.level() > 3 && SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
-    //     return SUCCESSORCACHE.lock().unwrap().get(&(m.hash(), j)).unwrap().clone();
-    // }
+    if m.level() > 3 && SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
+        return SUCCESSORCACHE.lock().unwrap().get(&(m.hash(), j)).unwrap().clone();
+    }
 
     let s: Option<Arc<Node>>;
     
@@ -241,7 +239,7 @@ fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
         };
     }
 
-    // SUCCESSORCACHE.lock().unwrap().insert((m.hash(), j), s.clone());
+    SUCCESSORCACHE.lock().unwrap().insert((m.hash(), j), s.clone());
     return s;
 }
 
@@ -389,15 +387,12 @@ impl Life {
         }
 
         let mut node_arc = Some(Arc::new(node));
-    
-        log(format!("before binary: {:?}", node_arc.level()).as_str());
         let mut bits = Vec::new();
         while n > 0 {
             bits.push(n & 1);
             n = n >> 1;
             node_arc = center(node_arc);
         }
-        log(format!("after binary: {:?}", node_arc.level()).as_str());
 
         for (k, bit) in bits.iter().rev().enumerate() {
             let j: u8 = (bits.iter().len() - k - 1).try_into().unwrap();
@@ -405,8 +400,6 @@ impl Life {
                 node_arc = successor(pad(node_arc), Some(j));
             }
         }
-
-        log(format!("after successor: {:?}", node_arc.level()).as_str());
 
         log(format!("{:?}", CALL_COUNT.load(Ordering::SeqCst)).as_str());
         CALL_COUNT.store(0, Ordering::SeqCst);
