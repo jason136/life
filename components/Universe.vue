@@ -21,34 +21,36 @@ export default {
     this.ctx = this.canvas.getContext('2d');
 
     const Life = this.life;
+    const renderer = this.renderer;
     var node = this.node;
-    this.renderer.zoom_to(2);
-    this.fps = 1000;
-    this.playing = false;
-    this.step = 1;
+
+    renderer.zoom_to(2);
+    var fps = 1000;
+    var playing = false;
+    var step = 1;
 
     this.lastFrame = performance.now();
     this.frames = [];
     this.lastFrameTimeStamp = performance.now();
     
     const render = () => {
-      this.canvas_width = document.body.scrollWidth;
-      this.canvas_height = document.body.scrollHeight;
-      this.canvas.width = this.canvas_width;
-      this.canvas.height = this.canvas_height;
+      const canvas_width = document.body.scrollWidth;
+      const canvas_height = document.body.scrollHeight;
+      this.canvas.width = canvas_width;
+      this.canvas.height = canvas_height;
 
-      this.renderer.set_size(this.canvas_width, this.canvas_height, window.devicePixelRatio);
+      renderer.set_size(canvas_width, canvas_height, window.devicePixelRatio);
 
       if (this.selected_cells.length > 0) {
         this.selected_cells.forEach(cell => {
-          this.renderer.draw_cell(cell[0], cell[1]);
+          renderer.draw_cell(cell[0], cell[1]);
         });
       }
 
-      const imagePtr = this.renderer.get_image_data(node);
-      const image_data_array = new Uint8ClampedArray(this.memory.buffer, imagePtr, this.canvas_width * this.canvas_height * 4);
+      const imagePtr = renderer.get_image_data(node);
+      const image_data_array = new Uint8ClampedArray(this.memory.buffer, imagePtr, canvas_width * canvas_height * 4);
 
-      const image_data = new ImageData(image_data_array, this.canvas_width, this.canvas_height);
+      const image_data = new ImageData(image_data_array, canvas_width, canvas_height);
       this.ctx.putImageData(image_data, 0, 0);
 
       const now = performance.now();
@@ -79,69 +81,84 @@ export default {
       `.trim();
     };
 
+    const advance = () => {
+      node = Life.advance(node, step);
+      render();
+    };
+
     // temporary solution for unknown root cause
-    const settleFrames = setInterval(render, 1000 / this.fps);
+    const settleFrames = setInterval(render, 1000 / fps);
     setTimeout(() => {
       clearInterval(settleFrames);
     }, 1000);
 
-    const advance = () => {
-      node = Life.advance(node, this.step);
-      render();
-    };
-
     this.$nuxt.$on('playing', ($event) => {
       if ($event) {
-        this.playing = true;
-        this.animationLoop = setInterval(advance, 1000 / this.fps);
+        playing = true;
+        this.animationLoop = setInterval(advance, 1000 / fps);
       }
       else {
-        this.playing = false;
+        playing = false;
         clearInterval(this.animationLoop);
       }
     });
 
     this.$nuxt.$on('updateNode', ($event) => {
       node = $event;
-      this.renderer.zoom_to(33);
-      this.renderer.set_size(document.body.scrollWidth, document.body.scrollHeight, window.devicePixelRatio);
-      this.renderer.center_view();
-      if (!this.playing) render();
+      renderer.zoom_to(33);
+      renderer.set_size(document.body.scrollWidth, document.body.scrollHeight, window.devicePixelRatio);
+      renderer.center_view();
+      if (!playing) render();
     });
 
-    this.$nuxt.$on('advance', ($event) => {
-      advance($event);
-      if (!this.playing) render();
+    this.$nuxt.$on('advance', () => {
+
+      for (var x = 0; x < Math.pow(2, node.level()); x++) {
+        for (var y = 0; y < Math.pow(2, node.level()); y++) {
+          var nx = x - Math.pow(2, node.level() - 1);
+          var ny = y - Math.pow(2, node.level() - 1);
+          //console.log(nx, ny);
+          if (Life.is_alive(node, nx, ny)) {
+            console.log('drawing cell', nx, ny);
+            renderer.draw_cell(nx, ny);
+          }
+        }
+      }
+      console.log(node.level());
+      render();
+
+      // advance(step);
+      // if (!playing) render();
     });
 
     this.$nuxt.$on('doOffset' , ($event) => {
       switch ($event) {
         case 'left':
-          this.renderer.move_offset(-100, 0);
+          renderer.move_offset(-100, 0);
           break;
         case 'right':
-          this.renderer.move_offset(100, 0);
+          renderer.move_offset(100, 0);
           break;
         case 'up':
-          this.renderer.move_offset(0, -100);
+          renderer.move_offset(0, -100);
           break;
         case 'down':
-          this.renderer.move_offset(0, 100);
+          renderer.move_offset(0, 100);
           break;
         default:
           break;
       }
-      if (!this.playing) render();
+      if (!playing) render();
     });
 
     this.$nuxt.$on('zoomOut', ($event) => {
-      this.renderer.zoom_centered($event);
-      if (!this.playing) render();
+      renderer.zoom_centered($event);
+      if (!playing) render();
     });
 
     this.$nuxt.$on('centerView', () => {
-      this.renderer.center_view();
-      if (!this.playing) render();
+      renderer.center_view();
+      if (!playing) render();
     });
 
     function getMousePos(canvas, evt) {
@@ -158,7 +175,7 @@ export default {
       if (last_mouse_x !== null) {
         let dx = Math.round(e.clientX - last_mouse_x);
         let dy = Math.round(e.clientY - last_mouse_y);
-        this.renderer.move_offset(dx, dy);
+        renderer.move_offset(dx, dy);
         last_mouse_x += dx;
         last_mouse_y += dy;
       }
@@ -167,24 +184,26 @@ export default {
     this.selected_cells = [];
     const draw = (e) => {
       const mouse_pos = getMousePos(this.canvas, e);
-      var coords = this.renderer.pixel_to_cell(mouse_pos.x, mouse_pos.y);
+      var coords = renderer.pixel_to_cell(mouse_pos.x, mouse_pos.y);
       console.log(`${coords[0]}, ${coords[1]}`);
-      this.selected_cells = [];
-      this.selected_cells.push(coords);
-      // Life.set_cell(node, coords[0], coords[1], 1);
+
+      // this.selected_cells = [];
+      // this.selected_cells.push(coords);
+
+      console.log(Life.is_alive(node, coords[0], coords[1]));
     }
 
     this.canvas.onmousedown = (e) => {
       e.preventDefault();
 
-      if (!this.playing) {
-        this.renderLoop = setInterval(render, 1000 / this.fps);
+      if (!playing) {
+        this.renderLoop = setInterval(render, 1000 / fps);
       }
 
       if (e.which === 3 || e.which === 2) {
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        if (this.renderer.get_cell_width() >= 1) {
+        if (renderer.get_cell_width() >= 1) {
           window.addEventListener('mousemove', draw, true);
         }
       }
@@ -204,17 +223,15 @@ export default {
       window.removeEventListener('mousemove', drag, true);
       this.canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
 
+      clearInterval(this.renderLoop);
       render();
-      if (!this.playing) {
-        clearInterval(this.renderLoop);
-      }
     };
 
     this.canvas.onmousewheel = (e) => {
       e.preventDefault();
       const mouse_pos = getMousePos(this.canvas, e);
-      this.renderer.zoom_at((e.wheelDelta || -e.detail) < 0, mouse_pos.x, mouse_pos.y);
-      if (!this.playing) render();
+      renderer.zoom_at((e.wheelDelta || -e.detail) < 0, mouse_pos.x, mouse_pos.y);
+      if (!playing) render();
       return false;
     };
   },

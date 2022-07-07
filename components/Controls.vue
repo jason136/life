@@ -24,7 +24,7 @@
           <button id='' v-on:click="$nuxt.$emit('centerView', true)">center</button>
         </li>
         <li>
-          <button id='' v-on:click="$nuxt.$emit('advance', 1)">step</button>
+          <button id='' v-on:click="$nuxt.$emit('advance')">step</button>
         </li>
         <li>
           <button id='' v-if="playing" v-on:click="$nuxt.$emit('playing', false); playing = false;">pause</button>

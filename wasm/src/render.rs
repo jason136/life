@@ -28,6 +28,7 @@ extern "C" {
 pub struct Renderer {
     background_color: u32,
     cell_color: u32,
+    added_cell_color: u32,
 
     canvas_width: i32,
     canvas_height: i32,
@@ -50,6 +51,7 @@ impl Renderer {
         Renderer {
             background_color: 0x000000FF,
             cell_color: 0xFFFFFFFF,
+            added_cell_color: 0xFF00FF00,
             canvas_width: 0,
             canvas_height: 0,
             canvas_offset_x: 0,
@@ -150,11 +152,9 @@ impl Renderer {
 
         let (pixel_x, pixel_y) = (pixels[0], pixels[1]);
         self.added_cells.push((pixel_x, pixel_y, width));
-        //self.draw_square(pixel_x, pixel_y, width);
-        log(&format!("{}, {} ...... {}", pixel_x, pixel_y, width));
     }
 
-    fn draw_square(&mut self, mut x: i32, mut y: i32, size: i32) {
+    fn draw_square(&mut self, mut x: i32, mut y: i32, size: i32, color: u32) {
         let mut width = size - self.border_pixels;
         let mut height = width;
 
@@ -183,7 +183,7 @@ impl Renderer {
 
         for _ in 0..height {
             for _ in 0..width {
-                self.image_data_pixels[pointer as usize] = self.cell_color;
+                self.image_data_pixels[pointer as usize] = color;
                 pointer += 1;
             }
             pointer += row_width;
@@ -200,12 +200,12 @@ impl Renderer {
 
         if size <= 1 {
             if node.population() > 0 {
-                self.draw_square(left + self.canvas_offset_x | 0, top + self.canvas_offset_y | 0, 1);
+                self.draw_square(left + self.canvas_offset_x | 0, top + self.canvas_offset_y | 0, 1, self.cell_color);
             }
         }
         else if node.level() == 0 {
             if node.population() > 0 {
-                self.draw_square(left + self.canvas_offset_x, top + self.canvas_offset_y, self.cell_width);
+                self.draw_square(left + self.canvas_offset_x, top + self.canvas_offset_y, self.cell_width, self.cell_color);
             }
         }
         else {
@@ -226,7 +226,7 @@ impl Renderer {
         self.draw_node(Some(Arc::new(node.clone())), 2 * size, -size, -size);
         
         for (x, y, width) in self.added_cells.drain(..).collect::<Vec<_>>() {
-            self.draw_square(x, y, width);
+            self.draw_square(x, y, width, self.added_cell_color);
         }
         
         self.image_data_bytes = self.image_data_pixels.iter().flat_map(|val| val.to_be_bytes()).collect();
