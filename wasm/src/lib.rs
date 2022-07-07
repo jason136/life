@@ -128,7 +128,6 @@ fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Opt
         level: n_level,
         hash: n_hash,
     }));
-
     // JOINCACHE.lock().unwrap().insert(hash_tuple, n.clone());
     return n
 }
@@ -151,7 +150,6 @@ fn get_zero(k: u8) -> Option<Arc<Node>> {
             get_zero(k - 1),
         )
     }
-
     ZEROCACHE.lock().unwrap().insert(k, n.clone());
     return n;
 }
@@ -238,7 +236,6 @@ fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
             )
         };
     }
-
     SUCCESSORCACHE.lock().unwrap().insert((m.hash(), j), s.clone());
     return s;
 }
@@ -287,7 +284,7 @@ fn pad(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
     }
 }
 
-fn expand_recurse(node: &Node, x: i32, y: i32) -> Vec<i32> {
+fn expand_recurse(node: Option<Arc<Node>>, x: i32, y: i32) -> Vec<i32> {
     if node.population() == 0 {
         return Vec::new()
     }
@@ -300,21 +297,66 @@ fn expand_recurse(node: &Node, x: i32, y: i32) -> Vec<i32> {
     else {
         let offset = (size >> 1) as i32;
         let mut output = Vec::new();
-        output.append(&mut expand_recurse(&node.a.as_ref().unwrap(), x, y));
-        output.append(&mut expand_recurse(&node.b.as_ref().unwrap(), x + offset, y));
-        output.append(&mut expand_recurse(&node.c.as_ref().unwrap(), x, y + offset));
-        output.append(&mut expand_recurse(&node.d.as_ref().unwrap(), x + offset, y + offset));
+        output.append(&mut expand_recurse(node.a(), x, y));
+        output.append(&mut expand_recurse(node.b(), x + offset, y));
+        output.append(&mut expand_recurse(node.c(), x, y + offset));
+        output.append(&mut expand_recurse(node.d(), x + offset, y + offset));
         return output
     }
+}
+
+fn is_alive(node: Option<Arc<Node>>, x: i32, y: i32) -> bool {
+    if node.level() == 0 {
+        if node.population() > 0 {
+            return true
+        }
+        else {
+            return false
+        }
+    }
+    else {
+        let offset = (2_u32.pow(node.level() as u32) >> 1) as i32;
+
+        if x >= 0 && y >= 0 {
+            log(format!("a, {}", node.level()).as_str());
+            return is_alive(node.a(), x - offset, y - offset)
+        }
+        else if x >= 0 && y < 0 {
+            log(format!("b, {}", node.level()).as_str());
+            return is_alive(node.b(), x - offset, y + offset)
+        }
+        else if x < 0 && y >= 0 {
+            log(format!("c, {}", node.level()).as_str());
+            return is_alive(node.c(), x + offset, y - offset)
+        }
+        else {
+            log(format!("d, {}", node.level()).as_str());
+            return is_alive(node.d(), x + offset, y + offset)
+        }
+    }
+}
+
+fn set_cell_recurse(mut node: Option<Arc<Node>>, x: i32, y: i32, alive: bool) -> Option<Arc<Node>> {
+    if node.level() == 0 {
+        return node
+    }
+
+
+
+
+    return Some(Arc::new(ON.clone()))
 }
 
 #[wasm_bindgen]
 impl Life {
     pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
-        let mut output = expand_recurse(&node, x, y);
+        let node_arc = Some(Arc::new(node.clone()));
+
+        let mut output = expand_recurse(node_arc, x, y);
         let min_x = output.chunks(2).map(|c| c[0]).min().unwrap();
         let min_y = output.chunks(2).map(|c| c[1]).min().unwrap();
         let min = std::cmp::min(min_x, min_y);
+
         output = output.iter().map(|c| c - min).collect();
         return output
     }
@@ -348,27 +390,10 @@ impl Life {
                 x = x - (x & 1);
                 y = y - (y & 1);
 
-                let (a, b, c, d): (Option<Arc<Node>>, Option<Arc<Node>>, Option<Arc<Node>>, Option<Arc<Node>>);
-                if let Some(n) = pattern.remove(&(x, y)) {
-                    a = n;
-                } else {
-                    a = z.clone();
-                }
-                if let Some(n) = pattern.remove(&(x + 1, y)) {
-                    b = n;
-                } else {
-                    b = z.clone();
-                }
-                if let Some(n) = pattern.remove(&(x, y + 1)) {
-                    c = n;
-                } else {
-                    c = z.clone();
-                }
-                if let Some(n) = pattern.remove(&(x + 1, y + 1)) {
-                    d = n;
-                } else {
-                    d = z.clone();
-                }
+                let a = pattern.remove(&(x, y)).unwrap_or(z.clone());
+                let b = pattern.remove(&(x + 1, y)).unwrap_or(z.clone());
+                let c = pattern.remove(&(x, y + 1)).unwrap_or(z.clone());
+                let d = pattern.remove(&(x + 1, y + 1)).unwrap_or(z.clone());
 
                 last_updated = (x >> 1, y >> 1);
                 next_level.insert((x >> 1, y >> 1), join(a, b, c, d));
@@ -377,7 +402,6 @@ impl Life {
             pattern = next_level;
             k += 1;
         }
-
         return (*pad(pattern[&last_updated].clone()).unwrap()).clone()
     }
 
@@ -404,8 +428,12 @@ impl Life {
         log(format!("{:?}", CALL_COUNT.load(Ordering::SeqCst)).as_str());
         CALL_COUNT.store(0, Ordering::SeqCst);
 
-        // return (*node_arc.unwrap()).clone()
         return (*crop(node_arc).unwrap()).clone()
+    }
+
+    pub fn set_cell(node: &mut Node, x: i32, y: i32, alive: bool) {
+        let mut node_arc = Some(Arc::new(node.clone()));
+        log(is_alive(node_arc, x, y).to_string().as_str());
     }
 
     // needs revision, don't use for now.
@@ -421,13 +449,8 @@ impl Life {
             }
             node = successor(node, None);
         }
-
         return (*node.unwrap()).clone()
     }
-
-    // pub fn equals(a: &Node, b: &Node) -> bool {
-    //     return a == b
-    // }
 }
 
 // https://github.com/johnhw/hashlife/blob/master/hashlife.py

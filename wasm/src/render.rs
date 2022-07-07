@@ -41,6 +41,7 @@ pub struct Renderer {
 
     image_data_pixels: Vec<u32>,
     image_data_bytes: Vec<u8>,
+    added_cells: Vec<(i32, i32, i32)>,
 }
 
 #[wasm_bindgen]
@@ -57,8 +58,10 @@ impl Renderer {
             border_pixels: 0,
             cell_width: 32,
             pixel_ratio: 1.0,
-            image_data_pixels: vec![],
-            image_data_bytes: vec![],
+
+            image_data_pixels: Vec::new(),
+            image_data_bytes: Vec::new(),
+            added_cells: Vec::new(),
         }
     }
 
@@ -118,15 +121,21 @@ impl Renderer {
         // log(&format!("offsets: {}, {}   dimentions: {}, {}", self.canvas_offset_x, self.canvas_offset_y, self.canvas_width, self.canvas_height));
     }
 
-    fn pixel_to_cell(&self, x: i32, y: i32) -> (i32, i32) {
-        (
-            (x as f32 * self.pixel_ratio - self.canvas_offset_x as f32 + self.border_width / 2.0).round() as i32 / self.cell_width,
-            (y as f32 * self.pixel_ratio - self.canvas_offset_y as f32 + self.border_width / 2.0).round() as i32 / self.cell_width
-        )
+    pub fn pixel_to_cell(&self, x: i32, y: i32) -> Vec<i32> {
+        vec![
+            ((x as f32 * self.pixel_ratio - self.canvas_offset_x as f32 + self.border_width / 2.0).round() / self.cell_width as f32) as i32,
+            ((y as f32 * self.pixel_ratio - self.canvas_offset_y as f32 + self.border_width / 2.0).round() / self.cell_width as f32) as i32,
+        ]
+    }
+    pub fn cell_to_pixel(&self, x: i32, y: i32) -> Vec<i32> {
+        vec![
+            ((x as f32 * self.cell_width as f32 + self.canvas_offset_x as f32 - self.border_width / 2.0).round() / self.pixel_ratio) as i32,
+            ((y as f32 * self.cell_width as f32 + self.canvas_offset_y as f32 - self.border_width / 2.0).round() / self.pixel_ratio) as i32,
+        ]
     }
 
-    pub fn get_size(&self) -> String {
-        format!("{}, {}", self.canvas_width, self.canvas_height).into()
+    pub fn get_cell_width(&self) -> i32 {
+        return self.cell_width
     }
     pub fn log_properties(&self) -> String {
         format!("offset: {}, {}. cell width: {}", self.canvas_offset_x, self.canvas_offset_y, self.cell_width) as String
@@ -135,18 +144,17 @@ impl Renderer {
     // pub fn fit_bounds(&mut self, )
     // use convert to coords method to create bounds
 
-    // fn draw_cell(&mut self, x: i32, y: i32, set: bool) {
-    //     let cell_x = x * self.cell_width + self.canvas_offset_x;
-    //     let cell_y = y * self.cell_width + self.canvas_offset_y;
-    //     let width = self.cell_width - (self.cell_width * self.border_width | 0 as i32);
+    pub fn draw_cell(&mut self, x: i32, y: i32) {
+        let width = self.cell_width - (self.cell_width * self.border_width as i32 | 0);
+        let pixels = self.cell_to_pixel(x, y);
 
-    //     if set {
-    //         // TODO call draw_square with a way to set the color
-    //     }
-    // }
+        let (pixel_x, pixel_y) = (pixels[0], pixels[1]);
+        self.added_cells.push((pixel_x, pixel_y, width));
+        //self.draw_square(pixel_x, pixel_y, width);
+        log(&format!("{}, {} ...... {}", pixel_x, pixel_y, width));
+    }
 
     fn draw_square(&mut self, mut x: i32, mut y: i32, size: i32) {
-
         let mut width = size - self.border_pixels;
         let mut height = width;
 
@@ -216,6 +224,11 @@ impl Renderer {
         
         let size = 2_i32.pow(node.level() as u32 - 1) * self.cell_width;
         self.draw_node(Some(Arc::new(node.clone())), 2 * size, -size, -size);
+        
+        for (x, y, width) in self.added_cells.drain(..).collect::<Vec<_>>() {
+            self.draw_square(x, y, width);
+        }
+        
         self.image_data_bytes = self.image_data_pixels.iter().flat_map(|val| val.to_be_bytes()).collect();
 
         return self.image_data_bytes.as_ptr()

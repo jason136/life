@@ -7,6 +7,8 @@
 </template>
 
 <script>
+import { Renderer } from '../www/render';
+
 export default {
   props: ['node', 'renderer', 'memory', 'life'],
   data() {
@@ -36,6 +38,12 @@ export default {
       this.canvas.height = this.canvas_height;
 
       this.renderer.set_size(this.canvas_width, this.canvas_height, window.devicePixelRatio);
+
+      if (this.selected_cells.length > 0) {
+        this.selected_cells.forEach(cell => {
+          this.renderer.draw_cell(cell[0], cell[1]);
+        });
+      }
 
       const imagePtr = this.renderer.get_image_data(node);
       const image_data_array = new Uint8ClampedArray(this.memory.buffer, imagePtr, this.canvas_width * this.canvas_height * 4);
@@ -136,6 +144,14 @@ export default {
       if (!this.playing) render();
     });
 
+    function getMousePos(canvas, evt) {
+      var rect = canvas.getBoundingClientRect();
+      return {
+        x: evt.clientX - rect.left,
+        y: evt.clientY - rect.top
+      };
+    }
+
     var last_mouse_x = null;
     var last_mouse_y = null;
     const drag = (e) => {
@@ -147,19 +163,31 @@ export default {
         last_mouse_y += dy;
       }
     };
+
+    this.selected_cells = [];
+    const draw = (e) => {
+      const mouse_pos = getMousePos(this.canvas, e);
+      var coords = this.renderer.pixel_to_cell(mouse_pos.x, mouse_pos.y);
+      console.log(`${coords[0]}, ${coords[1]}`);
+      this.selected_cells = [];
+      this.selected_cells.push(coords);
+      // Life.set_cell(node, coords[0], coords[1], 1);
+    }
+
     this.canvas.onmousedown = (e) => {
+      e.preventDefault();
+
       if (!this.playing) {
         this.renderLoop = setInterval(render, 1000 / this.fps);
       }
 
-      // if (e.which === 3 || e.which === 2) {
-      //   if (drawer.cell_width >= 1) {
-      //     var coords = drawer.pixel2cell(e.clientX, e.clientY);
-      //     mouse_set = !life.get_bit(coords.x, coords.y);
-      //     window.addEventListener('mousemove', do_field_draw, true);
-      //     do_field_draw(e);
-      //   }
-      // }
+      if (e.which === 3 || e.which === 2) {
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        if (this.renderer.get_cell_width() >= 1) {
+          window.addEventListener('mousemove', draw, true);
+        }
+      }
       if (e.which === 1) {
         last_mouse_x = e.clientX;
         last_mouse_y = e.clientY;
@@ -167,18 +195,25 @@ export default {
       }
       return false;
     };
+
     window.onmouseup = () => {
       last_mouse_x = null;
       last_mouse_y = null;
+      this.selected_cells = [];
+      window.removeEventListener('mousemove', draw, true);
       window.removeEventListener('mousemove', drag, true);
+      this.canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
 
+      render();
       if (!this.playing) {
         clearInterval(this.renderLoop);
       }
     };
+
     this.canvas.onmousewheel = (e) => {
       e.preventDefault();
-      this.renderer.zoom_at((e.wheelDelta || -e.detail) < 0, e.clientX, e.clientY - this.canvas.getBoundingClientRect().top);
+      const mouse_pos = getMousePos(this.canvas, e);
+      this.renderer.zoom_at((e.wheelDelta || -e.detail) < 0, mouse_pos.x, mouse_pos.y);
       if (!this.playing) render();
       return false;
     };
