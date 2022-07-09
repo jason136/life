@@ -41,10 +41,16 @@ export default {
 
       renderer.set_size(canvas_width, canvas_height, window.devicePixelRatio);
 
-      if (this.selected_cells.length > 0) {
-        this.selected_cells.forEach(cell => {
-          renderer.draw_cell(cell[0], cell[1]);
-        });
+      if (this.queue_draw_cells.length > 0) {
+        for (var x = 0; x < this.queue_draw_cells.length; x++) {
+          renderer.draw_cell(this.queue_draw_cells[x][0], this.queue_draw_cells[x][1])
+        }
+      }
+
+      if (this.queue_set_cells.length > 0) {
+        for (var x = 0; x < this.queue_set_cells.length; x++) {
+          node = Life.set_cell(node, this.queue_set_cells[x][0], this.queue_set_cells[x][1], this.queue_set_cells[x][2]);
+        }
       }
 
       const imagePtr = renderer.get_image_data(node);
@@ -180,18 +186,20 @@ export default {
       }
     };
 
-    this.selected_cells = [];
+    this.queue_draw_cells = [];
+    this.queue_set_cells = [];
     const draw = (e) => {
       const mouse_pos = getMousePos(this.canvas, e);
       var coords = renderer.pixel_to_cell(mouse_pos.x, mouse_pos.y);
       // console.log(`${coords[0]}, ${coords[1]}`);
 
-      this.selected_cells = [];
-      this.selected_cells.push(coords);
+      this.queue_draw_cells = [];
+      this.queue_draw_cells.push(coords);
+
+      this.queue_set_cells = [];
+      this.queue_set_cells.push([...coords, true]);
 
       // console.log(Life.is_alive(node, coords[0], coords[1]));
-
-      Life.set_cell(node, coords[0], coords[1], false);
 
       if (!playing) render();
     }
@@ -221,7 +229,7 @@ export default {
     window.onmouseup = () => {
       last_mouse_x = null;
       last_mouse_y = null;
-      this.selected_cells = [];
+      this.queue_draw_cells = [];
       window.removeEventListener('mousemove', draw, true);
       window.removeEventListener('mousemove', drag, true);
       this.canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
@@ -242,6 +250,7 @@ export default {
       if (!playing) render();
     }, true);
   },
+
   destroy() {
     window.removeEventListener('mousemove', draw, true);
     window.removeEventListener('mousemove', drag, true);

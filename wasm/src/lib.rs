@@ -7,7 +7,6 @@ mod parser;
 extern crate lazy_static;
 use std::collections::HashMap;
 use std::sync::{ Mutex, Arc };
-use std::sync::atomic::{ AtomicU32, AtomicU64, Ordering };
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -40,7 +39,7 @@ pub fn init_panic_hook() {
 }
 
 lazy_static! {
-    static ref JOINCACHE: Mutex<HashMap<(u64, u64, u64, u64), Option<Arc<Node>>>> = {
+    static ref JOINCACHE: Mutex<HashMap<u64, Option<Arc<Node>>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
@@ -54,36 +53,22 @@ lazy_static! {
     };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct Node {
     a: Option<Arc<Node>>,
     b: Option<Arc<Node>>,
     c: Option<Arc<Node>>,
     d: Option<Arc<Node>>,
-    population: AtomicU32,
+    population: u32,
     level: u8,
-    hash: AtomicU64,
-}
-
-impl Clone for Node {
-    fn clone(&self) -> Self {
-        Node {
-            a: self.a.clone(),
-            b: self.b.clone(),
-            c: self.c.clone(),
-            d: self.d.clone(),
-            population: AtomicU32::new(self.population.load(Ordering::SeqCst)),
-            level: self.level,
-            hash: AtomicU64::new(self.hash.load(Ordering::SeqCst)),
-        }
-    }
+    hash: u64,
 }
 
 pub struct Life;
 
-static ON: Node = Node{ a: None, b: None, c: None, d: None, population: AtomicU32::new(1), level: 0, hash: AtomicU64::new(1) };
-static OFF: Node = Node{ a: None, b: None, c: None, d: None, population: AtomicU32::new(0), level: 0, hash: AtomicU64::new(0) };
+static ON: Node = Node{ a: None, b: None, c: None, d: None, population: 1, level: 0, hash: 1 };
+static OFF: Node = Node{ a: None, b: None, c: None, d: None, population: 0, level: 0, hash: 0 };
 
 trait OptionExt {
     fn hash(&self) -> u64;
@@ -96,8 +81,8 @@ trait OptionExt {
 }
 
 impl OptionExt for Option<Arc<Node>> {
-    fn hash(&self) -> u64 { self.as_ref().unwrap().hash.load(Ordering::SeqCst) }
-    fn population(&self) -> u32 { self.as_ref().unwrap().population.load(Ordering::SeqCst) }
+    fn hash(&self) -> u64 { self.as_ref().unwrap().hash }
+    fn population(&self) -> u32 { self.as_ref().unwrap().population }
     fn level(&self) -> u8 { self.as_ref().unwrap().level }
     fn a(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().a.clone() }
     fn b(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().b.clone() }
@@ -107,41 +92,37 @@ impl OptionExt for Option<Arc<Node>> {
 
 #[wasm_bindgen]
 impl Node {
-    pub fn hash(&self) -> u64 { self.hash.load(Ordering::SeqCst) }
-    pub fn population(&self) -> u32 { self.population.load(Ordering::SeqCst) }
+    pub fn hash(&self) -> u64 { self.hash }
+    pub fn population(&self) -> u32 { self.population }
     pub fn level(&self) -> u8 { self.level }
 }
 
-fn calc_hash(l: u64, a: u64, b: u64, c: u64, d: u64) -> u64 {
-    return (
-        l + 2 + 
-        a * 5131830419411 +
-        b * 3758991985019 +
-        c * 8973110871315 +
-        d * 4318490180473
-    ) & ((1 << 63) - 1)
-}
-
 fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>) -> Option<Arc<Node>> {
-    // let hash_tuple = (a.hash(), b.hash(), c.hash(), d.hash());
-    // if a.level() > 3 && JOINCACHE.lock().unwrap().contains_key(&hash_tuple) {
-    //     return JOINCACHE.lock().unwrap().get(&hash_tuple).unwrap().clone()
+    let n_hash: u64 = 
+        u64::from(a.level()) + 2 +
+        &a.hash() * 2223243435546756677 +
+        &b.hash() * 1241111124211111421 +
+        &c.hash() * 7532753275327532753 +
+        &d.hash() * 9876503214123056789;
+
+    // if a.level() > 3 && JOINCACHE.lock().unwrap().contains_key(&n_hash) {
+    //     return JOINCACHE.lock().unwrap().get(&n_hash).unwrap().clone()
     // }
 
     let n_level = &a.level() + 1;
     let n_population: u32 = &a.population() + &b.population() + &c.population() + &d.population();
-    let n_hash = calc_hash(u64::from(a.level()), a.hash(), b.hash(), c.hash(), d.hash());
 
     let n = Some(Arc::new(Node {
         a,
         b,
         c,
         d,
-        population: AtomicU32::new(n_population),
+        population: n_population,
         level: n_level,
-        hash: AtomicU64::new(n_hash),
+        hash: n_hash,
     }));
-    // JOINCACHE.lock().unwrap().insert(hash_tuple, n.clone());
+
+    // JOINCACHE.lock().unwrap().insert(n_hash, n.clone());
     return n
 }
 
@@ -197,7 +178,8 @@ fn life_4x4(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
     )
 }
 
-static CALL_COUNT: AtomicU32 = AtomicU32::new(0);
+use std::sync::atomic::{AtomicUsize, Ordering};
+static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -316,43 +298,32 @@ fn expand_recurse(node: Option<Arc<Node>>, x: i32, y: i32) -> Vec<i32> {
     }
 }
 
-fn set_cell_recurse(node: Option<&Arc<Node>>, x: i32, y: i32, alive: bool) {
+fn set_cell_recurse(node: Option<Arc<Node>>, x: i32, y: i32, alive: bool) -> Option<Arc<Node>> {
     if node.as_ref().unwrap().level == 0 {
         if alive {
-            node.unwrap().population.store(1, Ordering::SeqCst);
-            node.unwrap().hash.store(1, Ordering::SeqCst);
-            return
+            return Some(Arc::new(ON.clone()))
         }
         else {
-            node.unwrap().population.store(0, Ordering::SeqCst);
-            node.unwrap().hash.store(0, Ordering::SeqCst);
-            return
+            return Some(Arc::new(OFF.clone()))
         }
     }
     
     let offset = (2_u32.pow(node.as_ref().unwrap().level as u32) >> 2) as i32;
+    let (mut a, mut b, mut c, mut d) = (node.a(), node.b(), node.c(), node.d());
 
     if x >= 0 && y >= 0 {
-        set_cell_recurse(node.as_ref().unwrap().d.as_ref(), x - offset, y - offset, alive);
+        d = set_cell_recurse(node.d(), x - offset, y - offset, alive);
     }
     else if x >= 0 && y < 0 {
-        set_cell_recurse(node.as_ref().unwrap().c.as_ref(), x - offset, y + offset, alive);
+        c = set_cell_recurse(node.c(), x - offset, y + offset, alive);
     }
     else if x < 0 && y >= 0 {
-        set_cell_recurse(node.as_ref().unwrap().b.as_ref(), x + offset, y - offset, alive);
+        b = set_cell_recurse(node.b(), x + offset, y - offset, alive);
     }
     else {
-        set_cell_recurse(node.as_ref().unwrap().a.as_ref(), x + offset, y + offset, alive);
+        a = set_cell_recurse(node.a(), x + offset, y + offset, alive);
     }
-
-    let new_hash = calc_hash(u64::from(node.as_ref().unwrap().a.as_ref().unwrap().level), 
-                                node.as_ref().unwrap().a.as_ref().unwrap().hash.load(Ordering::SeqCst),
-                                node.as_ref().unwrap().b.as_ref().unwrap().hash.load(Ordering::SeqCst), 
-                                node.as_ref().unwrap().c.as_ref().unwrap().hash.load(Ordering::SeqCst), 
-                                node.as_ref().unwrap().d.as_ref().unwrap().hash.load(Ordering::SeqCst),
-                            );
-    node.as_ref().unwrap().hash.store(new_hash, Ordering::SeqCst);
-    SUCCESSORCACHE.lock().unwrap().retain(|k, _| false);
+    return join(a, b, c, d)
 }
 
 fn is_alive_recurse(node: Option<Arc<Node>>, x: i32, y: i32) -> bool {
@@ -472,9 +443,10 @@ impl Life {
         return is_alive_recurse(node_arc, y, x);
     }
 
-    pub fn set_cell(node: &Node, x: i32, y: i32, alive: bool) {
+    pub fn set_cell(node: Node, x: i32, y: i32, alive: bool) -> Node {
         let node_arc = Some(Arc::new(node.clone()));
-        set_cell_recurse(node_arc.as_ref(), y, x, alive);
+        let new_node = set_cell_recurse(node_arc, y, x, alive);
+        return (*new_node.unwrap()).clone()
     }
 
     // needs revision, don't use for now.
