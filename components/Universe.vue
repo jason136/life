@@ -112,23 +112,8 @@ export default {
     });
 
     this.$nuxt.$on('advance', () => {
-
-      for (var x = 0; x < Math.pow(2, node.level()); x++) {
-        for (var y = 0; y < Math.pow(2, node.level()); y++) {
-          var nx = x - Math.pow(2, node.level() - 1);
-          var ny = y - Math.pow(2, node.level() - 1);
-          //console.log(nx, ny);
-          if (Life.is_alive(node, nx, ny)) {
-            console.log('drawing cell', nx, ny);
-            renderer.draw_cell(nx, ny);
-          }
-        }
-      }
-      console.log(node.level());
-      render();
-
-      // advance(step);
-      // if (!playing) render();
+      advance(step);
+      if (!playing) render();
     });
 
     this.$nuxt.$on('doOffset' , ($event) => {
@@ -157,8 +142,22 @@ export default {
     });
 
     this.$nuxt.$on('centerView', () => {
-      renderer.center_view();
-      if (!playing) render();
+
+      for (var x = 0; x < Math.pow(2, node.level()); x++) {
+        for (var y = 0; y < Math.pow(2, node.level()); y++) {
+          var nx = x - Math.pow(2, node.level() - 1);
+          var ny = y - Math.pow(2, node.level() - 1);
+          //console.log(nx, ny);
+          if (Life.is_alive(node, nx, ny)) {
+            renderer.draw_cell(nx, ny);
+          }
+        }
+      }
+      console.log(node.level());
+      render();
+
+      // renderer.center_view();
+      // if (!playing) render();
     });
 
     function getMousePos(canvas, evt) {
@@ -185,12 +184,16 @@ export default {
     const draw = (e) => {
       const mouse_pos = getMousePos(this.canvas, e);
       var coords = renderer.pixel_to_cell(mouse_pos.x, mouse_pos.y);
-      console.log(`${coords[0]}, ${coords[1]}`);
+      // console.log(`${coords[0]}, ${coords[1]}`);
 
-      // this.selected_cells = [];
-      // this.selected_cells.push(coords);
+      this.selected_cells = [];
+      this.selected_cells.push(coords);
 
-      console.log(Life.is_alive(node, coords[0], coords[1]));
+      // console.log(Life.is_alive(node, coords[0], coords[1]));
+
+      Life.set_cell(node, coords[0], coords[1], false);
+
+      if (!playing) render();
     }
 
     this.canvas.onmousedown = (e) => {
@@ -234,7 +237,22 @@ export default {
       if (!playing) render();
       return false;
     };
+
+    window.addEventListener('resize', () => {
+      if (!playing) render();
+    }, true);
   },
+  destroy() {
+    window.removeEventListener('mousemove', draw, true);
+    window.removeEventListener('mousemove', drag, true);
+    window.removeEventListener('resize', () => {
+      if (!playing) render();
+    }, true);
+    this.canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
+
+    clearInterval(this.animationLoop)
+    clearInterval(this.renderLoop);
+  }
 };
 </script>
 
