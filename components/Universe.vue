@@ -45,12 +45,14 @@ export default {
         for (var x = 0; x < this.queue_draw_cells.length; x++) {
           renderer.draw_cell(this.queue_draw_cells[x][0], this.queue_draw_cells[x][1])
         }
+        this.queue_draw_cells = [];
       }
 
       if (this.queue_set_cells.length > 0) {
         for (var x = 0; x < this.queue_set_cells.length; x++) {
           node = Life.set_cell(node, this.queue_set_cells[x][0], this.queue_set_cells[x][1], this.queue_set_cells[x][2]);
         }
+        this.queue_set_cells = [];
       }
 
       const imagePtr = renderer.get_image_data(node);
@@ -114,6 +116,8 @@ export default {
       renderer.zoom_to(33);
       renderer.set_size(document.body.scrollWidth, document.body.scrollHeight, window.devicePixelRatio);
       renderer.center_view();
+
+      $nuxt.$emit('centerView');
       if (!playing) render();
     });
 
@@ -149,21 +153,26 @@ export default {
 
     this.$nuxt.$on('centerView', () => {
 
-      for (var x = 0; x < Math.pow(2, node.level()); x++) {
-        for (var y = 0; y < Math.pow(2, node.level()); y++) {
-          var nx = x - Math.pow(2, node.level() - 1);
-          var ny = y - Math.pow(2, node.level() - 1);
-          //console.log(nx, ny);
-          if (Life.is_alive(node, nx, ny)) {
-            renderer.draw_cell(nx, ny);
-          }
-        }
-      }
-      console.log(node.level());
-      render();
+      console.log(window.performance.now());
+      const bounds = Life.get_bounds(node);
 
-      // renderer.center_view();
-      // if (!playing) render();
+      console.log(bounds);
+      const center_x = (bounds[0] + bounds[1]) / 2;
+      const center_y = (bounds[2] + bounds[3]) / 2;
+
+      console.log(`${center_x}, ${center_y}`);
+
+      const move_x = (-center_x * renderer.get_cell_width() * 1.1) + (document.body.scrollWidth / 2);
+      const move_y = (-center_y * renderer.get_cell_width() * 1.1) + (document.body.scrollHeight / 2);
+
+      console.log(`${move_x}, ${move_y}`);
+
+      renderer.center_view();
+      renderer.move_offset(node, move_x, move_y);
+
+      console.log(window.performance.now());
+
+      if (!playing) render();
     });
 
     function getMousePos(canvas, evt) {

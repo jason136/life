@@ -7,18 +7,12 @@ use std::sync::Arc;
 
 #[wasm_bindgen]
 extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 
-    // The `console.log` is quite polymorphic, so we can bind it with multiple
-    // signatures. Note that we need to use `js_name` to ensure we always call
-    // `log` in JS.
     #[wasm_bindgen(js_namespace = console, js_name = log)]
     fn log_u32(a: u32);
 
-    // Multiple arguments too!
     #[wasm_bindgen(js_namespace = console, js_name = log)]
     fn log_many(a: &str, b: &str);
 }
@@ -37,12 +31,12 @@ pub struct Renderer {
 
     border_width: f32,
     border_pixels: i32,
-    cell_width: i32,
+    cell_width: f32,
     pixel_ratio: f32,
 
     image_data_pixels: Vec<u32>,
     image_data_bytes: Vec<u8>,
-    added_cells: Vec<(i32, i32, i32)>,
+    added_cells: Vec<(i32, i32, f32)>,
 }
 
 #[wasm_bindgen]
@@ -58,7 +52,7 @@ impl Renderer {
             canvas_offset_y: 0,
             border_width: 0.1,
             border_pixels: 0,
-            cell_width: 32,
+            cell_width: 32.0,
             pixel_ratio: 1.0,
 
             image_data_pixels: Vec::new(),
@@ -79,15 +73,13 @@ impl Renderer {
             self.canvas_offset_x -= (self.canvas_offset_x - center_x) / 2;
             self.canvas_offset_y -= (self.canvas_offset_y - center_y) / 2;
 
-            if self.cell_width > 1 {
-                self.cell_width /= 2;
-            }
+            self.cell_width /= 2.0;
         }
         else {
             self.canvas_offset_x += self.canvas_offset_x - center_x;
             self.canvas_offset_y += self.canvas_offset_y - center_y;
 
-            self.cell_width *= 2;
+            self.cell_width *= 2.0;
         }
     }
     pub fn zoom_at(&mut self, out: bool, center_x: i32, center_y: i32) {
@@ -97,10 +89,10 @@ impl Renderer {
         self.zoom(out, self.canvas_width >> 1, self.canvas_height >> 1);
     }
     pub fn zoom_to(&mut self, level: i32) {
-        while self.cell_width > level {
+        while self.cell_width > level as f32 {
             self.zoom_centered(true);
         }
-        while self.cell_width * 2 < level {
+        while self.cell_width * 2.0 < level as f32 {
             self.zoom_centered(false);
         }
     }
@@ -108,6 +100,10 @@ impl Renderer {
     pub fn move_offset(&mut self, x: i32, y: i32) {
         self.canvas_offset_x += (x as f32 * self.pixel_ratio).round() as i32;
         self.canvas_offset_y += (y as f32 * self.pixel_ratio).round() as i32;
+    }
+    pub fn set_offset(&mut self, x: i32, y: i32) {
+        self.canvas_offset_x = (x as f32 * self.pixel_ratio).round() as i32;
+        self.canvas_offset_y = (y as f32 * self.pixel_ratio).round() as i32;
     }
 
     pub fn set_size(&mut self, width: i32, height: i32, factor: f32) {
@@ -125,37 +121,31 @@ impl Renderer {
 
     pub fn pixel_to_cell(&self, x: i32, y: i32) -> Vec<i32> {
         vec![
-            ((x as f32 * self.pixel_ratio - self.canvas_offset_x as f32 + self.border_width / 2.0).round() / self.cell_width as f32) as i32,
-            ((y as f32 * self.pixel_ratio - self.canvas_offset_y as f32 + self.border_width / 2.0).round() / self.cell_width as f32) as i32,
+            ((x as f32 * self.pixel_ratio - self.canvas_offset_x as f32 + self.border_width / 2.0).round() / self.cell_width).round() as i32,
+            ((y as f32 * self.pixel_ratio - self.canvas_offset_y as f32 + self.border_width / 2.0).round() / self.cell_width).round() as i32,
         ]
     }
     pub fn cell_to_pixel(&self, x: i32, y: i32) -> Vec<i32> {
         vec![
-            ((x as f32 * self.cell_width as f32 + self.canvas_offset_x as f32 - self.border_width / 2.0).round() / self.pixel_ratio) as i32,
-            ((y as f32 * self.cell_width as f32 + self.canvas_offset_y as f32 - self.border_width / 2.0).round() / self.pixel_ratio) as i32,
+            ((x as f32 * self.cell_width + self.canvas_offset_x as f32 - self.border_width / 2.0).round() / self.pixel_ratio).round() as i32,
+            ((y as f32 * self.cell_width + self.canvas_offset_y as f32 - self.border_width / 2.0).round() / self.pixel_ratio).round() as i32,
         ]
     }
 
-    pub fn get_cell_width(&self) -> i32 {
+    pub fn get_cell_width(&self) -> f32 {
         return self.cell_width
     }
-    pub fn log_properties(&self) -> String {
-        format!("offset: {}, {}. cell width: {}", self.canvas_offset_x, self.canvas_offset_y, self.cell_width) as String
-    }
-
-    // pub fn fit_bounds(&mut self, )
-    // use convert to coords method to create bounds
 
     pub fn draw_cell(&mut self, x: i32, y: i32) {
-        let width = self.cell_width - (self.cell_width * self.border_width as i32 | 0);
+        let width = self.cell_width - (self.cell_width * self.border_width);
         let pixels = self.cell_to_pixel(x, y);
 
         let (pixel_x, pixel_y) = (pixels[0], pixels[1]);
         self.added_cells.push((pixel_x, pixel_y, width));
     }
 
-    fn draw_square(&mut self, mut x: i32, mut y: i32, size: i32, color: u32) {
-        let mut width = size - self.border_pixels;
+    fn draw_square(&mut self, mut x: i32, mut y: i32, size: f32, color: u32) {
+        let mut width = size.round() as i32 - self.border_pixels;
         let mut height = width;
 
         if x < 0 {
@@ -190,26 +180,26 @@ impl Renderer {
         }
     }
 
-    fn draw_node(&mut self, node: Option<Arc<Node>>, mut size: i32, left: i32, top: i32) {
+    fn draw_node(&mut self, node: Option<Arc<Node>>, mut size: f32, left: f32, top: f32) {
         if node.population() == 0 { return };
 
-        if left + size + self.canvas_offset_x < 0 ||
-            top + size + self.canvas_offset_y < 0 ||
-            left + self.canvas_offset_x >= self.canvas_width ||
-            top + self.canvas_offset_y >= self.canvas_height { return };
+        if left + size + (self.canvas_offset_x as f32) < 0.0 ||
+            top + size + (self.canvas_offset_y as f32) < 0.0 ||
+            left + (self.canvas_offset_x as f32) >= self.canvas_width as f32 ||
+            top + (self.canvas_offset_y as f32) >= self.canvas_height as f32 { return };
 
-        if size <= 1 {
+        if size <= 1.0 {
             if node.population() > 0 {
-                self.draw_square(left + self.canvas_offset_x | 0, top + self.canvas_offset_y | 0, 1, self.cell_color);
+                self.draw_square(left.round() as i32 + self.canvas_offset_x | 0, top.round() as i32 + self.canvas_offset_y | 0, 1.0, self.cell_color);
             }
         }
         else if node.level() == 0 {
             if node.population() > 0 {
-                self.draw_square(left + self.canvas_offset_x, top + self.canvas_offset_y, self.cell_width, self.cell_color);
+                self.draw_square(left.round() as i32 + self.canvas_offset_x, top.round() as i32 + self.canvas_offset_y, self.cell_width, self.cell_color);
             }
         }
         else {
-            size /= 2;
+            size /= 2.0;
 
             self.draw_node(node.a(), size, left, top);
             self.draw_node(node.b(), size, left + size, top);
@@ -222,8 +212,8 @@ impl Renderer {
         self.image_data_pixels = vec![self.background_color; (self.canvas_width * self.canvas_height) as usize];
         self.border_pixels = (self.border_width * self.cell_width as f32).round() as i32 | 0;
         
-        let size = 2_i32.pow(node.level() as u32 - 1) * self.cell_width;
-        self.draw_node(Some(Arc::new(node.clone())), 2 * size, -size, -size);
+        let size = 2.0_f32.powf(node.level() as f32 - 1.0) * self.cell_width;
+        self.draw_node(Some(Arc::new(node.clone())), size * 2.0, -size, -size);
         
         for (x, y, width) in self.added_cells.drain(..).collect::<Vec<_>>() {
             self.draw_square(x, y, width, self.added_cell_color);

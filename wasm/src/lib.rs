@@ -16,18 +16,12 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
 extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 
-    // The `console.log` is quite polymorphic, so we can bind it with multiple
-    // signatures. Note that we need to use `js_name` to ensure we always call
-    // `log` in JS.
     #[wasm_bindgen(js_namespace = console, js_name = log)]
     fn log_u32(a: u32);
 
-    // Multiple arguments too!
     #[wasm_bindgen(js_namespace = console, js_name = log)]
     fn log_many(a: &str, b: &str);
 }
@@ -98,12 +92,13 @@ impl Node {
 }
 
 fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>) -> Option<Arc<Node>> {
-    let n_hash: u64 = 
+    let n_hash: u64 = (
         u64::from(a.level()) + 2 +
         &a.hash() * 2223243435546756677 +
         &b.hash() * 1241111124211111421 +
         &c.hash() * 7532753275327532753 +
-        &d.hash() * 9876503214123056789;
+        &d.hash() * 9876503214123056789
+    ) & ((1 << 63) - 1);
 
     // if a.level() > 3 && JOINCACHE.lock().unwrap().contains_key(&n_hash) {
     //     return JOINCACHE.lock().unwrap().get(&n_hash).unwrap().clone()
@@ -353,6 +348,49 @@ fn is_alive_recurse(node: Option<Arc<Node>>, x: i32, y: i32) -> bool {
     }
 }
 
+fn get_bounds_recurse(node: Option<Arc<Node>>, x: i32, y: i32, border: &str) -> Vec<(i32, i32, &str)> {
+    if node.population() == 0 {
+        return vec![(0, 0, border)]
+    }
+    if node.level() == 0 {
+        return vec![(x, y, border)]
+    }
+    else {
+        let offset = (2_u32.pow(node.level() as u32) >> 2) as i32;
+        let mut output = Vec::new();
+
+        if border == "left" {
+            if node.a().population() > 0 {
+                output.append(&mut get_bounds_recurse(node.a(), x - offset, y - offset, "left"));
+            }
+            else if node.c().population() > 0 {
+                output.append(&mut get_bounds_recurse(node.c(), x - offset, y + offset, "left"));
+            }
+            else if node.b().population() > 0 {
+                output.append(&mut get_bounds_recurse(node.b(), x + offset, y - offset, "left"));
+            }
+            else {
+                output.append(&mut get_bounds_recurse(node.d(), x + offset, y + offset, "left"));
+            }
+        }
+        else {
+            if node.a().population() > 0 {
+                output.append(&mut get_bounds_recurse(node.a(), x - offset, y - offset, "top"));
+            }
+            else if node.b().population() > 0 {
+                output.append(&mut get_bounds_recurse(node.b(), x + offset, y - offset, "top"));
+            }
+            else if node.c().population() > 0 {
+                output.append(&mut get_bounds_recurse(node.c(), x - offset, y + offset, "top"));
+            }
+            else {
+                output.append(&mut get_bounds_recurse(node.d(), x + offset, y + offset, "top"));
+            }
+        }
+        return output
+    }
+}
+
 #[wasm_bindgen]
 impl Life {
     pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
@@ -448,6 +486,35 @@ impl Life {
         let new_node = set_cell_recurse(node_arc, y, x, alive);
         return (*new_node.unwrap()).clone()
     }
+
+    pub fn get_bounds(node: &Node) -> Vec<i32> {
+        let node_arc = Some(Arc::new(node.clone()));
+
+        let left = get_bounds_recurse(node_arc.clone(), 0, 0, "left");
+        let top = get_bounds_recurse(node_arc.clone(), 0, 0, "top");
+
+        let min_x = left.iter().map(|x| x.0).min().unwrap();
+        let min_y = top.iter().map(|y| y.1).min().unwrap();
+
+        let pts = Life::expand(node, 0, 0);
+
+        let x = pts.chunks(2).map(|c| c[0]).max().unwrap();
+        let y = pts.chunks(2).map(|c| c[1]).max().unwrap();
+
+        return vec![min_x, min_x + x, min_y, min_y + y]
+    }
+
+    // pub fn get_bounds(node: &Node) -> Vec<i32> {
+    //     let pts = Life::expand(node, 0, 0);
+    //     let pairs = pts.chunks(2);
+
+    //     let min_x = &pairs.clone().map(|p| p[0]).min().unwrap();
+    //     let max_x = &pairs.clone().map(|p| p[0]).max().unwrap();
+    //     let min_y = &pairs.clone().map(|p| p[1]).min().unwrap();
+    //     let max_y = &pairs.clone().map(|p| p[1]).max().unwrap();
+
+    //     return vec![min_x.clone(), max_x.clone(), min_y.clone(), max_y.clone()]
+    // }
 
     // needs revision, don't use for now.
     pub fn ffwd(node: &Node, n: u32) -> Node {
