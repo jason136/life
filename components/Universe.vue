@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- <div id='fps'></div> -->
-    <canvas id='canvas' ref='Universe' style='width: 100% height: 100%'></canvas>
+    <canvas id='canvas' ref='Universe'></canvas>
     <p>{{ message }}</p>
   </div>
 </template>
@@ -24,7 +24,6 @@ export default {
     const renderer = this.renderer;
     var node = this.node;
 
-    renderer.zoom_to(2);
     var fps = 1000;
     var playing = false;
     var step = 1;
@@ -34,8 +33,8 @@ export default {
     this.lastFrameTimeStamp = performance.now();
     
     const render = () => {
-      const canvas_width = document.body.scrollWidth;
-      const canvas_height = document.body.scrollHeight;
+      const canvas_width = document.documentElement.clientWidth;
+      const canvas_height = document.documentElement.clientHeight;
       this.canvas.width = canvas_width;
       this.canvas.height = canvas_height;
 
@@ -94,12 +93,6 @@ export default {
       render();
     };
 
-    // temporary solution for unknown root cause
-    const settleFrames = setInterval(render, 1000 / fps);
-    setTimeout(() => {
-      clearInterval(settleFrames);
-    }, 1000);
-
     this.$nuxt.$on('playing', ($event) => {
       if ($event) {
         playing = true;
@@ -113,11 +106,7 @@ export default {
 
     this.$nuxt.$on('updateNode', ($event) => {
       node = $event;
-      renderer.zoom_to(33);
-      renderer.set_size(document.body.scrollWidth, document.body.scrollHeight, window.devicePixelRatio);
-      renderer.center_view();
 
-      $nuxt.$emit('centerView');
       if (!playing) render();
     });
 
@@ -152,25 +141,46 @@ export default {
     });
 
     this.$nuxt.$on('centerView', () => {
-
-      console.log(window.performance.now());
       const bounds = Life.get_bounds(node);
+      const width = Math.ceil((bounds[0] - bounds[1]) * 1.1);
+      const height = Math.ceil((bounds[2] - bounds[3]) * 1.1);
 
-      console.log(bounds);
-      const center_x = (bounds[0] + bounds[1]) / 2;
-      const center_y = (bounds[2] + bounds[3]) / 2;
+      const width_factor = Math.abs(document.documentElement.clientWidth / width);
+      const height_factor = Math.abs(document.documentElement.clientHeight / height);
+      const factor = Math.min(width_factor, height_factor);
 
-      console.log(`${center_x}, ${center_y}`);
+      var new_cell_width = 1;
+      if (factor > 1) {
+        while (new_cell_width < factor) {
+          new_cell_width *= 2;
+        }
+        new_cell_width /= 2;
+      }
+      else {
+        while (new_cell_width > factor) {
+          new_cell_width /= 2;
+        }
+      }
 
-      const move_x = (-center_x * renderer.get_cell_width() * 1.1) + (document.body.scrollWidth / 2);
-      const move_y = (-center_y * renderer.get_cell_width() * 1.1) + (document.body.scrollHeight / 2);
+      var center_x = (bounds[0] + bounds[1]) / 2;
+      var center_y = (bounds[2] + bounds[3]) / 2;
 
-      console.log(`${move_x}, ${move_y}`);
+      console.log(`center_x: ${center_x} center_y: ${center_y}`);
 
-      renderer.center_view();
-      renderer.move_offset(node, move_x, move_y);
+      if (0.1 * new_cell_width < 1) {
+        center_x = Math.round(center_x * new_cell_width);
+        center_y = Math.round(center_y * new_cell_width);
+      }
+      else {
+        center_x = Math.round((center_x * new_cell_width * 1.1));
+        center_y = Math.round((center_y * new_cell_width * 1.1));
+      }
 
-      console.log(window.performance.now());
+      console.log(`center_x: ${center_x} center_y: ${center_y}`);
+      console.log(`new_cell_width: ${new_cell_width}`);
+
+      renderer.zoom_to(new_cell_width);
+      renderer.center_view(center_x, center_y);
 
       if (!playing) render();
     });
@@ -200,13 +210,13 @@ export default {
     const draw = (e) => {
       const mouse_pos = getMousePos(this.canvas, e);
       var coords = renderer.pixel_to_cell(mouse_pos.x, mouse_pos.y);
-      // console.log(`${coords[0]}, ${coords[1]}`);
+      console.log(`${coords[0]}, ${coords[1]}`);
 
       this.queue_draw_cells = [];
       this.queue_draw_cells.push(coords);
 
-      this.queue_set_cells = [];
-      this.queue_set_cells.push([...coords, true]);
+      // this.queue_set_cells = [];
+      // this.queue_set_cells.push([...coords, true]);
 
       // console.log(Life.is_alive(node, coords[0], coords[1]));
 
@@ -297,5 +307,8 @@ body {
   width: 100%;
   height: 100%;
   display: block;
+  outline: 5px solid rgb(0, 255, 47);
+  outline-offset: -3px;
+  margin-top: 92px;
 }
 </style>

@@ -360,30 +360,23 @@ fn get_bounds_recurse(node: Option<Arc<Node>>, x: i32, y: i32, border: &str) -> 
         let mut output = Vec::new();
 
         if border == "left" {
-            if node.a().population() > 0 {
+            if node.a().population() > 0  || node.c().population() > 0{
                 output.append(&mut get_bounds_recurse(node.a(), x - offset, y - offset, "left"));
-            }
-            else if node.c().population() > 0 {
                 output.append(&mut get_bounds_recurse(node.c(), x - offset, y + offset, "left"));
-            }
-            else if node.b().population() > 0 {
-                output.append(&mut get_bounds_recurse(node.b(), x + offset, y - offset, "left"));
+
             }
             else {
+                output.append(&mut get_bounds_recurse(node.b(), x + offset, y - offset, "left"));
                 output.append(&mut get_bounds_recurse(node.d(), x + offset, y + offset, "left"));
             }
         }
         else {
-            if node.a().population() > 0 {
+            if node.a().population() > 0 || node.b().population() > 0 {
                 output.append(&mut get_bounds_recurse(node.a(), x - offset, y - offset, "top"));
-            }
-            else if node.b().population() > 0 {
                 output.append(&mut get_bounds_recurse(node.b(), x + offset, y - offset, "top"));
             }
-            else if node.c().population() > 0 {
-                output.append(&mut get_bounds_recurse(node.c(), x - offset, y + offset, "top"));
-            }
             else {
+                output.append(&mut get_bounds_recurse(node.c(), x - offset, y + offset, "top"));
                 output.append(&mut get_bounds_recurse(node.d(), x + offset, y + offset, "top"));
             }
         }
@@ -493,8 +486,8 @@ impl Life {
         let left = get_bounds_recurse(node_arc.clone(), 0, 0, "left");
         let top = get_bounds_recurse(node_arc.clone(), 0, 0, "top");
 
-        let min_x = left.iter().map(|x| x.0).min().unwrap();
-        let min_y = top.iter().map(|y| y.1).min().unwrap();
+        let min_x = left.iter().map(|x| x.0).min().unwrap() + 1;
+        let min_y = top.iter().map(|y| y.1).min().unwrap() + 1;
 
         let pts = Life::expand(node, 0, 0);
 

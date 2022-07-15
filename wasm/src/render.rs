@@ -46,10 +46,12 @@ impl Renderer {
             background_color: 0x000000FF,
             cell_color: 0xFFFFFFFF,
             added_cell_color: 0xFF00FF00,
+
             canvas_width: 0,
             canvas_height: 0,
             canvas_offset_x: 0,
             canvas_offset_y: 0,
+
             border_width: 0.1,
             border_pixels: 0,
             cell_width: 32.0,
@@ -82,53 +84,45 @@ impl Renderer {
             self.cell_width *= 2.0;
         }
     }
+
     pub fn zoom_at(&mut self, out: bool, center_x: i32, center_y: i32) {
         self.zoom(out, (center_x as f32 * self.pixel_ratio).round() as i32, (center_y as f32 * self.pixel_ratio).round() as i32);
     }
     pub fn zoom_centered(&mut self, out: bool) {
         self.zoom(out, self.canvas_width >> 1, self.canvas_height >> 1);
     }
-    pub fn zoom_to(&mut self, level: i32) {
-        while self.cell_width > level as f32 {
-            self.zoom_centered(true);
-        }
-        while self.cell_width * 2.0 < level as f32 {
-            self.zoom_centered(false);
-        }
+    pub fn zoom_to(&mut self, level: f32) {
+        self.cell_width = level;
     }
 
     pub fn move_offset(&mut self, x: i32, y: i32) {
         self.canvas_offset_x += (x as f32 * self.pixel_ratio).round() as i32;
         self.canvas_offset_y += (y as f32 * self.pixel_ratio).round() as i32;
     }
-    pub fn set_offset(&mut self, x: i32, y: i32) {
-        self.canvas_offset_x = (x as f32 * self.pixel_ratio).round() as i32;
-        self.canvas_offset_y = (y as f32 * self.pixel_ratio).round() as i32;
-    }
 
     pub fn set_size(&mut self, width: i32, height: i32, factor: f32) {
         self.canvas_width = (width as f32 * factor).round() as i32;
         self.canvas_height = (height as f32 * factor).round() as i32;
-
         self.pixel_ratio = factor;
     }
 
-    pub fn center_view(&mut self) {
+    pub fn center_view(&mut self, offset_x: i32, offset_y: i32) {
         self.canvas_offset_x = self.canvas_width >> 1;
         self.canvas_offset_y = self.canvas_height >> 1;
-        // log(&format!("offsets: {}, {}   dimentions: {}, {}", self.canvas_offset_x, self.canvas_offset_y, self.canvas_width, self.canvas_height));
+
+        self.move_offset(-offset_x, -offset_y);
     }
 
     pub fn pixel_to_cell(&self, x: i32, y: i32) -> Vec<i32> {
         vec![
-            ((x as f32 * self.pixel_ratio - self.canvas_offset_x as f32 + self.border_width / 2.0).round() / self.cell_width).round() as i32,
-            ((y as f32 * self.pixel_ratio - self.canvas_offset_y as f32 + self.border_width / 2.0).round() / self.cell_width).round() as i32,
+            ((x as f32 * self.pixel_ratio - self.canvas_offset_x as f32 + self.border_width / 2.0) / self.cell_width).round() as i32,
+            ((y as f32 * self.pixel_ratio - self.canvas_offset_y as f32 + self.border_width / 2.0) / self.cell_width).round() as i32,
         ]
     }
     pub fn cell_to_pixel(&self, x: i32, y: i32) -> Vec<i32> {
         vec![
-            ((x as f32 * self.cell_width + self.canvas_offset_x as f32 - self.border_width / 2.0).round() / self.pixel_ratio).round() as i32,
-            ((y as f32 * self.cell_width + self.canvas_offset_y as f32 - self.border_width / 2.0).round() / self.pixel_ratio).round() as i32,
+            ((x as f32 * self.cell_width + self.canvas_offset_x as f32 - self.border_width / 2.0) / self.pixel_ratio).round() as i32,
+            ((y as f32 * self.cell_width + self.canvas_offset_y as f32 - self.border_width / 2.0) / self.pixel_ratio).round() as i32,
         ]
     }
 
@@ -210,7 +204,7 @@ impl Renderer {
 
     pub fn get_image_data(&mut self, node: &Node) -> *const u8 {
         self.image_data_pixels = vec![self.background_color; (self.canvas_width * self.canvas_height) as usize];
-        self.border_pixels = (self.border_width * self.cell_width as f32).round() as i32 | 0;
+        self.border_pixels = (self.border_width * self.cell_width as f32).floor() as i32 | 0;
         
         let size = 2.0_f32.powf(node.level() as f32 - 1.0) * self.cell_width;
         self.draw_node(Some(Arc::new(node.clone())), size * 2.0, -size, -size);

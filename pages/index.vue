@@ -63,15 +63,13 @@ export default {
       console.log(Life.convert_rle(Life.expand(node), 'gosper gun'));
     
       $nuxt.$emit('updateNode', node);
+      $nuxt.$emit('centerView');
     },
 
     methods: {
       loadRLE(pattern) {
         const items = Life.parse_rle(pattern);
         const node = Life.construct(items);
-        // console.log(items);
-        // console.log(node);
-        // console.log(Life.convert_rle(Life.expand(node), 'gosper gun'));
         $nuxt.$emit('updateNode', node);
       }
     },
