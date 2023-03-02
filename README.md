@@ -1,1 +1,1 @@
-Game of Life with nuxt and rust wasm
+game of life in rust wasm

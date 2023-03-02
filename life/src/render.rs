@@ -206,7 +206,7 @@ impl Renderer {
         self.image_data_pixels = vec![self.background_color; (self.canvas_width * self.canvas_height) as usize];
         self.border_pixels = (self.border_width * self.cell_width as f32).floor() as i32 | 0;
         
-        let size = 2.0_f32.powf(node.level() as f32 - 1.0) * self.cell_width;
+        let size = 2.0_f32.powf(node.level as f32 - 1.0) * self.cell_width;
         self.draw_node(Some(Arc::new(node.clone())), size * 2.0, -size, -size);
         
         for (x, y, width) in self.added_cells.drain(..).collect::<Vec<_>>() {

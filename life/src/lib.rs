@@ -1,15 +1,11 @@
+use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::*;
+use std::collections::HashMap;
+use std::sync::{ Mutex, Arc };
 
 mod render;
 mod parser;
 
-#[macro_use]
-extern crate lazy_static;
-use std::collections::HashMap;
-use std::sync::{ Mutex, Arc };
-
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -32,28 +28,19 @@ pub fn init_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
-lazy_static! {
-    static ref JOINCACHE: Mutex<HashMap<u64, Option<Arc<Node>>>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
-    static ref ZEROCACHE: Mutex<HashMap<u8, Option<Arc<Node>>>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
-    static ref SUCCESSORCACHE: Mutex<HashMap<(u64, Option<u8>), Option<Arc<Node>>>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
-}
+type NodePtr = Option<Arc<Node>>;
+
+static JOINCACHE: Lazy<Mutex<HashMap<u64, NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
+static ZEROCACHE: Lazy<Mutex<HashMap<u8, NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
+static SUCCESSORCACHE: Lazy<Mutex<HashMap<(u64, Option<u8>), NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct Node {
-    a: Option<Arc<Node>>,
-    b: Option<Arc<Node>>,
-    c: Option<Arc<Node>>,
-    d: Option<Arc<Node>>,
+    a: NodePtr,
+    b: NodePtr,
+    c: NodePtr,
+    d: NodePtr,
     population: u32,
     level: u8,
     hash: u64,
@@ -68,30 +55,33 @@ trait OptionExt {
     fn hash(&self) -> u64;
     fn population(&self) -> u32;
     fn level(&self) -> u8;
-    fn a(&self) -> Option<Arc<Node>>;
-    fn b(&self) -> Option<Arc<Node>>;
-    fn c(&self) -> Option<Arc<Node>>;
-    fn d(&self) -> Option<Arc<Node>>;
+    fn a(&self) -> NodePtr;
+    fn b(&self) -> NodePtr;
+    fn c(&self) -> NodePtr;
+    fn d(&self) -> NodePtr;
 }
 
-impl OptionExt for Option<Arc<Node>> {
+impl OptionExt for NodePtr {
     fn hash(&self) -> u64 { self.as_ref().unwrap().hash }
     fn population(&self) -> u32 { self.as_ref().unwrap().population }
     fn level(&self) -> u8 { self.as_ref().unwrap().level }
-    fn a(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().a.clone() }
-    fn b(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().b.clone() }
-    fn c(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().c.clone() }
-    fn d(&self) -> Option<Arc<Node>> { self.as_ref().unwrap().d.clone() }
+    fn a(&self) -> NodePtr { self.as_ref().unwrap().a.clone() }
+    fn b(&self) -> NodePtr { self.as_ref().unwrap().b.clone() }
+    fn c(&self) -> NodePtr { self.as_ref().unwrap().c.clone() }
+    fn d(&self) -> NodePtr { self.as_ref().unwrap().d.clone() }
 }
 
-#[wasm_bindgen]
-impl Node {
-    pub fn hash(&self) -> u64 { self.hash }
-    pub fn population(&self) -> u32 { self.population }
-    pub fn level(&self) -> u8 { self.level }
-}
+// replace mutex lock with if let
 
-fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>) -> Option<Arc<Node>> {
+// pending deletion
+// #[wasm_bindgen]
+// impl Node {
+//     pub fn hash(&self) -> u64 { self.hash }
+//     pub fn population(&self) -> u32 { self.population }
+//     pub fn level(&self) -> u8 { self.level }
+// }
+
+fn join(a: NodePtr, b: NodePtr, c: NodePtr, d: NodePtr) -> NodePtr {
     let n_hash: u64 = (
         u64::from(a.level()) + 2 +
         &a.hash() * 2223243435546756677 +
@@ -107,11 +97,8 @@ fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Opt
     let n_level = &a.level() + 1;
     let n_population: u32 = &a.population() + &b.population() + &c.population() + &d.population();
 
-    let n = Some(Arc::new(Node {
-        a,
-        b,
-        c,
-        d,
+    let n = Some(Arc::new(Node { 
+        a, b, c, d,
         population: n_population,
         level: n_level,
         hash: n_hash,
@@ -121,12 +108,12 @@ fn join(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Opt
     return n
 }
 
-fn get_zero(k: u8) -> Option<Arc<Node>> {
+fn get_zero(k: u8) -> NodePtr {
     if ZEROCACHE.lock().unwrap().contains_key(&k) {
         return ZEROCACHE.lock().unwrap().get(&k).unwrap().clone();
     }
 
-    let n: Option<Arc<Node>>;
+    let n: NodePtr;
     if k == 0 {
         n = Some(Arc::new(OFF.clone()))
     }
@@ -142,8 +129,8 @@ fn get_zero(k: u8) -> Option<Arc<Node>> {
     return n;
 }
 
-fn life(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Option<Arc<Node>>, e: Option<Arc<Node>>, 
-        f: Option<Arc<Node>>, g: Option<Arc<Node>>, h: Option<Arc<Node>>, i: Option<Arc<Node>>) -> Option<Arc<Node>> {
+fn life(a: NodePtr, b: NodePtr, c: NodePtr, d: NodePtr, e: NodePtr, 
+        f: NodePtr, g: NodePtr, h: NodePtr, i: NodePtr) -> NodePtr {
     let mut outer = 0;
     for n in [a, b, c, d, f, g, h, i].iter() {
         outer += n.population();
@@ -159,24 +146,19 @@ fn life(a: Option<Arc<Node>>, b: Option<Arc<Node>>, c: Option<Arc<Node>>, d: Opt
         Some(Arc::new(OFF.clone()))
     }
 }
-fn life_4x4(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
+fn life_4x4(m: NodePtr) -> NodePtr {
     let na = life(m.a().a(), m.a().b(), m.b().a(), m.a().c(), m.a().d(), m.b().c(), m.c().a(), m.c().b(), m.d().a());
     let nb = life(m.a().b(), m.b().a(), m.b().b(), m.a().d(), m.b().c(), m.b().d(), m.c().b(), m.d().a(), m.d().b());
     let nc = life(m.a().c(), m.a().d(), m.b().c(), m.c().a(), m.c().b(), m.d().a(), m.c().c(), m.c().d(), m.d().c());
     let nd = life(m.a().d(), m.b().c(), m.b().d(), m.c().b(), m.d().a(), m.d().b(), m.c().d(), m.d().c(), m.d().d());
 
-    join(
-        na,
-        nb,
-        nc,
-        nd,
-    )
+    join(na, nb, nc, nd)
 }
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
+fn successor(m: NodePtr, mut j: Option<u8>) -> NodePtr {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
 
     if m.population() == 0 {
@@ -187,7 +169,7 @@ fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
         return SUCCESSORCACHE.lock().unwrap().get(&(m.hash(), j)).unwrap().clone();
     }
 
-    let s: Option<Arc<Node>>;
+    let s: NodePtr;
     
     if m.level() == 2 {
         s = life_4x4(m.clone());
@@ -228,7 +210,7 @@ fn successor(m: Option<Arc<Node>>, mut j: Option<u8>) -> Option<Arc<Node>> {
     return s;
 }
 
-fn is_padded(node: Option<Arc<Node>>) -> bool {
+fn is_padded(node: NodePtr) -> bool {
     return 
         node.a().population() == node.a().d().d().population() &&
         node.b().population() == node.b().c().c().population() &&
@@ -236,7 +218,7 @@ fn is_padded(node: Option<Arc<Node>>) -> bool {
         node.d().population() == node.d().a().a().population()
 }
 
-fn inner(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
+fn inner(node: NodePtr) -> NodePtr {
     return join(
         node.a().d(),
         node.b().c(),
@@ -245,7 +227,7 @@ fn inner(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
     )
 }
 
-fn center(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
+fn center(m: NodePtr) -> NodePtr {
     let z = get_zero(m.a().level());
     return join(
         join(z.clone(), z.clone(), z.clone(), m.a()), 
@@ -255,7 +237,7 @@ fn center(m: Option<Arc<Node>>) -> Option<Arc<Node>> {
     );
 }
 
-fn crop(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
+fn crop(node: NodePtr) -> NodePtr {
     if node.level() <= 3 || !is_padded(node.clone()) {
         return node
     }
@@ -263,7 +245,7 @@ fn crop(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
         return crop(inner(node))
     }
 }
-fn pad(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
+fn pad(node: NodePtr) -> NodePtr {
     if node.level() <= 3 || !is_padded(node.clone()) {
         return pad(center(node))
     }
@@ -272,7 +254,7 @@ fn pad(node: Option<Arc<Node>>) -> Option<Arc<Node>> {
     }
 }
 
-fn expand_recurse(node: Option<Arc<Node>>, x: i32, y: i32) -> Vec<i32> {
+fn expand_recurse(node: NodePtr, x: i32, y: i32) -> Vec<i32> {
     if node.population() == 0 {
         return Vec::new()
     }
@@ -293,7 +275,7 @@ fn expand_recurse(node: Option<Arc<Node>>, x: i32, y: i32) -> Vec<i32> {
     }
 }
 
-fn set_cell_recurse(node: Option<Arc<Node>>, x: i32, y: i32, alive: bool) -> Option<Arc<Node>> {
+fn set_cell_recurse(node: NodePtr, x: i32, y: i32, alive: bool) -> NodePtr {
     if node.as_ref().unwrap().level == 0 {
         if alive {
             return Some(Arc::new(ON.clone()))
@@ -321,7 +303,7 @@ fn set_cell_recurse(node: Option<Arc<Node>>, x: i32, y: i32, alive: bool) -> Opt
     return join(a, b, c, d)
 }
 
-fn is_alive_recurse(node: Option<Arc<Node>>, x: i32, y: i32) -> bool {
+fn is_alive_recurse(node: NodePtr, x: i32, y: i32) -> bool {
     if node.level() == 0 {
         if node.population() == 1 {
             return true
@@ -348,7 +330,7 @@ fn is_alive_recurse(node: Option<Arc<Node>>, x: i32, y: i32) -> bool {
     }
 }
 
-fn get_bounds_recurse(node: Option<Arc<Node>>, x: i32, y: i32, border: &str) -> Vec<(i32, i32, &str)> {
+fn get_bounds_recurse(node: NodePtr, x: i32, y: i32, border: &str) -> Vec<(i32, i32, &str)> {
     if node.population() == 0 {
         return vec![(0, 0, border)]
     }
@@ -408,7 +390,7 @@ impl Life {
         let min_x = x_vals.iter().min().unwrap();
         let min_y = y_vals.iter().min().unwrap();
 
-        let mut pattern: HashMap<(i32, i32), Option<Arc<Node>>> = std::collections::HashMap::new();
+        let mut pattern: HashMap<(i32, i32), NodePtr> = std::collections::HashMap::new();
         for n in 0..x_vals.len() {
             pattern.insert(
                 (x_vals[n] - min_x, y_vals[n] - min_y),

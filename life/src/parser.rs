@@ -1,7 +1,5 @@
 use wasm_bindgen::prelude::*;
-use crate::{
-    Life, 
-};
+use crate::Life;
 use regex::Regex;
 
 #[wasm_bindgen]
