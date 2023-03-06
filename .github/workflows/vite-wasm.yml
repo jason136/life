@@ -1,4 +1,4 @@
-name: vite-wasm
+name: Vite Wasm
 
 on:
   push:
@@ -27,10 +27,22 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Set Up Webassembly Dependencies
+    - name: Check for Cached Webassembly Dependencies
+      id: cache-wasm-deps
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-wasm-deps
+      with:
+        path: |
+          ~/.cargo/bin/wasm-pack
+          ~/.cargo/bin/wasm-opt
+        key: ${{ runner.os }}-wasm-deps
+
+    - name: Build Webassembly Dependencies
       run: |
         cargo install wasm-pack
         cargo install wasm-opt
+      if: steps.cache-wasm-deps.outputs.cache-hit != 'true'
 
     - name: Set Up Github Pages
       uses: actions/configure-pages@v3

@@ -10,6 +10,12 @@ mod parser;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+#[cfg(feature = "console_error_panic_hook")]
+#[wasm_bindgen]
+pub fn init_panic_hook() {
+    console_error_panic_hook::set_once();
+}
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
@@ -20,12 +26,6 @@ extern "C" {
 
     #[wasm_bindgen(js_namespace = console, js_name = log)]
     fn log_many(a: &str, b: &str);
-}
-
-#[cfg(feature = "console_error_panic_hook")]
-#[wasm_bindgen]
-pub fn init_panic_hook() {
-    console_error_panic_hook::set_once();
 }
 
 type NodePtr = Option<Arc<Node>>;
@@ -73,13 +73,12 @@ impl OptionExt for NodePtr {
 
 // replace mutex lock with if let
 
-// pending deletion
-// #[wasm_bindgen]
-// impl Node {
-//     pub fn hash(&self) -> u64 { self.hash }
-//     pub fn population(&self) -> u32 { self.population }
-//     pub fn level(&self) -> u8 { self.level }
-// }
+#[wasm_bindgen]
+impl Node {
+    pub fn hash(&self) -> u64 { self.hash }
+    pub fn population(&self) -> u32 { self.population }
+    pub fn level(&self) -> u8 { self.level }
+}
 
 fn join(a: NodePtr, b: NodePtr, c: NodePtr, d: NodePtr) -> NodePtr {
     let n_hash: u64 = (
@@ -492,7 +491,7 @@ impl Life {
     // }
 
     // needs revision, don't use for now.
-    pub fn ffwd(node: &Node, n: u32) -> Node {
+    pub fn ffwd(node: Node, n: u32) -> Node {
         let mut node = Some(Arc::new(node.clone()));
         for _ in 0..n {
             while node.level() < 3 || 

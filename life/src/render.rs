@@ -215,6 +215,8 @@ impl Renderer {
         
         self.image_data_bytes = self.image_data_pixels.iter().flat_map(|val| val.to_be_bytes()).collect();
 
+        log(&format!("width: {} height: {} ratio: {} length: {}", self.canvas_width, self.canvas_height, self.pixel_ratio, self.image_data_pixels.len()));
+
         return self.image_data_bytes.as_ptr()
     }
 }
