@@ -283,32 +283,3 @@ export default {
   }
 };
 </script>
-
-<style>
-body {
-  margin: 0 !important;
-  padding: 0 !important;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-#fps {
-  white-space: pre;
-  font-family: monospace;
-}
-
-#canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  outline: 5px solid rgb(0, 255, 47);
-  outline-offset: -3px;
-  margin-top: 92px;
-}
-</style>

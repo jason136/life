@@ -28,12 +28,6 @@ extern "C" {
     fn log_many(a: &str, b: &str);
 }
 
-type NodePtr = Option<Arc<Node>>;
-
-static JOINCACHE: Lazy<Mutex<HashMap<u64, NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
-static ZEROCACHE: Lazy<Mutex<HashMap<u8, NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
-static SUCCESSORCACHE: Lazy<Mutex<HashMap<(u64, Option<u8>), NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
-
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct Node {
@@ -50,6 +44,14 @@ pub struct Life;
 
 static ON: Node = Node{ a: None, b: None, c: None, d: None, population: 1, level: 0, hash: 1 };
 static OFF: Node = Node{ a: None, b: None, c: None, d: None, population: 0, level: 0, hash: 0 };
+
+type NodePtr = Option<Arc<Node>>;
+
+static NODE: Lazy<Mutex<NodePtr>> = Lazy::new(|| { Mutex::new(Some(Arc::new(OFF.clone()))) });
+
+static JOINCACHE: Lazy<Mutex<HashMap<u64, NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
+static ZEROCACHE: Lazy<Mutex<HashMap<u8, NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
+static SUCCESSORCACHE: Lazy<Mutex<HashMap<(u64, Option<u8>), NodePtr>>> = Lazy::new(|| { Mutex::new(HashMap::new()) });
 
 trait OptionExt {
     fn hash(&self) -> u64;
@@ -72,13 +74,6 @@ impl OptionExt for NodePtr {
 }
 
 // replace mutex lock with if let
-
-#[wasm_bindgen]
-impl Node {
-    pub fn hash(&self) -> u64 { self.hash }
-    pub fn population(&self) -> u32 { self.population }
-    pub fn level(&self) -> u8 { self.level }
-}
 
 fn join(a: NodePtr, b: NodePtr, c: NodePtr, d: NodePtr) -> NodePtr {
     let n_hash: u64 = (
@@ -253,7 +248,7 @@ fn pad(node: NodePtr) -> NodePtr {
     }
 }
 
-fn expand_recurse(node: NodePtr, x: i32, y: i32) -> Vec<i32> {
+fn expand_recurse(node: &NodePtr, x: i32, y: i32) -> Vec<i32> {
     if node.population() == 0 {
         return Vec::new()
     }
@@ -266,16 +261,16 @@ fn expand_recurse(node: NodePtr, x: i32, y: i32) -> Vec<i32> {
     else {
         let offset = (size >> 1) as i32;
         let mut output = Vec::new();
-        output.append(&mut expand_recurse(node.a(), x, y));
-        output.append(&mut expand_recurse(node.b(), x + offset, y));
-        output.append(&mut expand_recurse(node.c(), x, y + offset));
-        output.append(&mut expand_recurse(node.d(), x + offset, y + offset));
+        output.append(&mut expand_recurse(&node.a(), x, y));
+        output.append(&mut expand_recurse(&node.b(), x + offset, y));
+        output.append(&mut expand_recurse(&node.c(), x, y + offset));
+        output.append(&mut expand_recurse(&node.d(), x + offset, y + offset));
         return output
     }
 }
 
 fn set_cell_recurse(node: NodePtr, x: i32, y: i32, alive: bool) -> NodePtr {
-    if node.as_ref().unwrap().level == 0 {
+    if node.level() == 0 {
         if alive {
             return Some(Arc::new(ON.clone()))
         }
@@ -337,7 +332,7 @@ fn get_bounds_recurse(node: NodePtr, x: i32, y: i32, border: &str) -> Vec<(i32, 
         return vec![(x, y, border)]
     }
     else {
-        let offset = (2_u32.pow(node.level() as u32) >> 2) as i32;
+        let offset = 2_i32.pow(node.level() as u32) >> 2;
         let mut output = Vec::new();
 
         if border == "left" {
@@ -367,22 +362,21 @@ fn get_bounds_recurse(node: NodePtr, x: i32, y: i32, border: &str) -> Vec<(i32, 
 
 #[wasm_bindgen]
 impl Life {
-    pub fn expand(node: &Node, x: i32, y: i32) -> Vec<i32> {
-        let node_arc = Some(Arc::new(node.clone()));
+    pub fn hash() -> u64 { NODE.lock().unwrap().hash() }
+    pub fn population() -> u32 { NODE.lock().unwrap().population() }
+    pub fn level() -> u8 { NODE.lock().unwrap().level() }
 
-        let mut output = expand_recurse(node_arc, x, y);
+    pub fn expand(x: i32, y: i32) -> Vec<i32> {
+        let output = expand_recurse(&NODE.lock().unwrap().clone(), x, y);
         let min_x = output.chunks(2).map(|c| c[0]).min().unwrap();
         let min_y = output.chunks(2).map(|c| c[1]).min().unwrap();
         let min = std::cmp::min(min_x, min_y);
 
-        output = output.iter().map(|c| c - min).collect();
-        return output
+        return output.iter().map(|c| c - min).collect();
     }
 
-    pub fn construct(pts: Vec<i32>) -> Node {
-        if pts.len() == 0 || pts.len() % 2 == 1 {
-            return (*get_zero(4).as_deref().unwrap()).clone()
-        }
+    pub fn construct(pts: Vec<i32>) {
+        if pts.len() == 0 || pts.len() % 2 == 1 { return }
 
         let x_vals: Vec::<i32> = pts.chunks(2).map(|c| c[0]).collect();
         let y_vals: Vec::<i32> = pts.chunks(2).map(|c| c[1]).collect();
@@ -420,90 +414,80 @@ impl Life {
             pattern = next_level;
             k += 1;
         }
-        return (*pad(pattern[&last_updated].clone()).unwrap()).clone()
+        let mut node = NODE.lock().unwrap();
+        *node = pad(pattern[&last_updated].clone());
     }
 
-    pub fn advance(node: Node, mut n: u32) -> Node {
-        if n == 0 {
-            return node
-        }
+    pub fn advance(mut n: u32) {
+        if n == 0 { return }
 
-        let mut node_arc = Some(Arc::new(node));
+        let mut node = NODE.lock().unwrap();
         let mut bits = Vec::new();
         while n > 0 {
             bits.push(n & 1);
             n = n >> 1;
-            node_arc = center(node_arc);
+            *node = center(node.clone());
         }
 
         for (k, bit) in bits.iter().rev().enumerate() {
             let j: u8 = (bits.iter().len() - k - 1).try_into().unwrap();
             if bit != &0 {
-                node_arc = successor(pad(node_arc), Some(j));
+                *node = successor(pad(node.clone()), Some(j));
             }
         }
 
         log(format!("{:?}", CALL_COUNT.load(Ordering::SeqCst)).as_str());
         CALL_COUNT.store(0, Ordering::SeqCst);
 
-        return (*crop(node_arc).unwrap()).clone()
+        *node = crop(node.clone());
     }
 
-    pub fn is_alive(node: &mut Node, x: i32, y: i32) -> bool {
-        let node_arc = Some(Arc::new(node.clone()));
+    pub fn is_alive(x: i32, y: i32) -> bool {
+        let node = NODE.lock().unwrap();
         // best not to ask why x and y are swapped
-        return is_alive_recurse(node_arc, y, x);
+        return is_alive_recurse(node.clone(), y, x);
     }
 
-    pub fn set_cell(node: Node, x: i32, y: i32, alive: bool) -> Node {
-        let node_arc = Some(Arc::new(node.clone()));
-        let new_node = set_cell_recurse(node_arc, y, x, alive);
-        return (*new_node.unwrap()).clone()
+    pub fn set_cell(x: i32, y: i32, alive: bool) {
+        let mut node = NODE.lock().unwrap();
+        *node = set_cell_recurse(node.clone(), y, x, alive);
     }
 
-    pub fn get_bounds(node: &Node) -> Vec<i32> {
-        let node_arc = Some(Arc::new(node.clone()));
+    // this can and should be done better in the future
+    pub fn get_bounds() -> Vec<i32> {
+        let node = NODE.lock().unwrap();
 
-        let left = get_bounds_recurse(node_arc.clone(), 0, 0, "left");
-        let top = get_bounds_recurse(node_arc.clone(), 0, 0, "top");
+        let left = get_bounds_recurse(node.clone(), 0, 0, "left");
+        let top = get_bounds_recurse(node.clone(), 0, 0, "top");
 
         let min_x = left.iter().map(|x| x.0).min().unwrap() + 1;
         let min_y = top.iter().map(|y| y.1).min().unwrap() + 1;
 
-        let pts = Life::expand(node, 0, 0);
+        let output = expand_recurse(&node, 0, 0);
+        let expand_min_x = output.chunks(2).map(|c| c[0]).min().unwrap();
+        let expand_min_y = output.chunks(2).map(|c| c[1]).min().unwrap();
+        let min = std::cmp::min(expand_min_x, expand_min_y);
+        let expanded: Vec<i32> = output.iter().map(|c| c - min).collect();
 
-        let x = pts.chunks(2).map(|c| c[0]).max().unwrap();
-        let y = pts.chunks(2).map(|c| c[1]).max().unwrap();
+        let x = expanded.chunks(2).map(|c| c[0]).max().unwrap();
+        let y = expanded.chunks(2).map(|c| c[1]).max().unwrap();
 
         return vec![min_x, min_x + x, min_y, min_y + y]
     }
 
-    // pub fn get_bounds(node: &Node) -> Vec<i32> {
-    //     let pts = Life::expand(node, 0, 0);
-    //     let pairs = pts.chunks(2);
-
-    //     let min_x = &pairs.clone().map(|p| p[0]).min().unwrap();
-    //     let max_x = &pairs.clone().map(|p| p[0]).max().unwrap();
-    //     let min_y = &pairs.clone().map(|p| p[1]).min().unwrap();
-    //     let max_y = &pairs.clone().map(|p| p[1]).max().unwrap();
-
-    //     return vec![min_x.clone(), max_x.clone(), min_y.clone(), max_y.clone()]
-    // }
-
     // needs revision, don't use for now.
-    pub fn ffwd(node: Node, n: u32) -> Node {
-        let mut node = Some(Arc::new(node.clone()));
+    pub fn ffwd(n: u32) {
+        let mut node = NODE.lock().unwrap();
         for _ in 0..n {
             while node.level() < 3 || 
                 node.a().population() != node.a().d().d().population() ||
                 node.b().population() != node.b().c().c().population() ||
                 node.c().population() != node.c().b().b().population() ||
                 node.d().population() != node.d().a().a().population() {
-                node = center(node);
+                *node = center(node.clone());
             }
-            node = successor(node, None);
+            *node = successor(node.clone(), None);
         }
-        return (*node.unwrap()).clone()
     }
 }
 

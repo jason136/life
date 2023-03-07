@@ -4,7 +4,6 @@ import './App.css'
 import init, { Life, Renderer, init_panic_hook } from 'life';
 
 import Universe from './Universe';
-import Controls from './Controls';
 
 function App() {
   const [wasmInitialized, setWasmInitialized] = useState(false);
@@ -23,7 +22,6 @@ function App() {
     <div className="App">
       {wasmInitialized ? 
       <div>
-        <Controls />
         <Universe Life={Life} Renderer={Renderer} memory={memory}/> 
       </div>
       : 
