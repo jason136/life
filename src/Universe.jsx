@@ -123,8 +123,7 @@ function Universe({ Life, Renderer, memory }) {
 
     queueDrawCell.current = [mouse_pos.x, mouse_pos.y];
 
-    // queueSetCells.current = [];
-    // queueSetCells.current.push([mouse_pos.x, mouse_pos.y, true]);
+    queueSetCells.current.push([mouse_pos.x, mouse_pos.y, true]);
   }
   
   function playLoop() {
@@ -156,12 +155,12 @@ function Universe({ Life, Renderer, memory }) {
       Renderer.draw_cell(queueDrawCell.current[0], queueDrawCell.current[1])
     }
 
-    // if (queueSetCells.current.length > 0) {
-    //   for (let x = 0; x < queueSetCells.current.length; x++) {
-    //     Life.set_cell(queueSetCells.current[x][0], queueSetCells.current[x][1], queueSetCells.current[x][2]);
-    //   }
-    //   queueSetCells.current.current = [];
-    // }
+    if (queueSetCells.current.length > 0) {
+      for (let x = 0; x < queueSetCells.current.length; x++) {
+        Life.set_cell(queueSetCells.current[x][0], queueSetCells.current[x][1], queueSetCells.current[x][2]);
+      }
+      queueSetCells.current = [];
+    }
 
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
@@ -210,6 +209,7 @@ function Universe({ Life, Renderer, memory }) {
         canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
         if (Renderer.get_cell_width() >= 1) {
+          drawCells(e);
           window.addEventListener('mousemove', drawCells, true);
         }
       }

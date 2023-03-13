@@ -37,7 +37,7 @@ pub struct Renderer {
     added_cells: Vec<(i32, i32, f32)>,
 }
 
-static RENDERER: Lazy<Mutex<Renderer>> = Lazy::new(|| { Mutex::new(Renderer {
+pub static RENDERER: Lazy<Mutex<Renderer>> = Lazy::new(|| { Mutex::new(Renderer {
     background_color: 0x000000FF,
     cell_color: 0xFFFFFFFF,
     added_cell_color: 0xFFFFFFFF,
@@ -56,6 +56,19 @@ static RENDERER: Lazy<Mutex<Renderer>> = Lazy::new(|| { Mutex::new(Renderer {
     image_data_bytes: Vec::new(),
     added_cells: Vec::new(),
 }) });
+
+pub fn pixel_to_cell(renderer: &Renderer, x: i32, y: i32) -> (i32, i32) {
+    (
+        ((x as f32 * renderer.pixel_ratio - renderer.canvas_offset_x as f32 + renderer.border_width / 2.0) / renderer.cell_width).round() as i32,
+        ((y as f32 * renderer.pixel_ratio - renderer.canvas_offset_y as f32 + renderer.border_width / 2.0) / renderer.cell_width).round() as i32,
+    )
+}
+pub fn cell_to_pixel(renderer: &Renderer, x: i32, y: i32) -> (i32, i32) {
+    (
+        ((x as f32 * renderer.cell_width + renderer.canvas_offset_x as f32 - renderer.border_width / 2.0) / renderer.pixel_ratio).round() as i32,
+        ((y as f32 * renderer.cell_width + renderer.canvas_offset_y as f32 - renderer.border_width / 2.0) / renderer.pixel_ratio).round() as i32,
+    )
+}
 
 #[wasm_bindgen]
 impl Renderer {
@@ -117,19 +130,6 @@ impl Renderer {
         renderer.canvas_offset_y += (-offset_y as f32 * renderer.pixel_ratio).round() as i32;
     }
 
-    fn pixel_to_cell(renderer: &Renderer, x: i32, y: i32) -> Vec<i32> {
-        vec![
-            ((x as f32 * renderer.pixel_ratio - renderer.canvas_offset_x as f32 + renderer.border_width / 2.0) / renderer.cell_width).round() as i32,
-            ((y as f32 * renderer.pixel_ratio - renderer.canvas_offset_y as f32 + renderer.border_width / 2.0) / renderer.cell_width).round() as i32,
-        ]
-    }
-    fn cell_to_pixel(renderer: &Renderer, x: i32, y: i32) -> Vec<i32> {
-        vec![
-            ((x as f32 * renderer.cell_width + renderer.canvas_offset_x as f32 - renderer.border_width / 2.0) / renderer.pixel_ratio).round() as i32,
-            ((y as f32 * renderer.cell_width + renderer.canvas_offset_y as f32 - renderer.border_width / 2.0) / renderer.pixel_ratio).round() as i32,
-        ]
-    }
-
     pub fn get_cell_width() -> f32 {
         RENDERER.lock().unwrap().cell_width
     }
@@ -137,10 +137,10 @@ impl Renderer {
     pub fn draw_cell(x: i32, y: i32) {
         let mut renderer = RENDERER.lock().unwrap();
         let width = renderer.cell_width;
-        let cells = Self::pixel_to_cell(&*renderer, x, y);
-        let pixels = Self::cell_to_pixel(&*renderer, cells[0], cells[1]);
+        let cells = pixel_to_cell(&*renderer, x, y);
+        let pixels = cell_to_pixel(&*renderer, cells.0, cells.1);
 
-        renderer.added_cells.push((pixels[0], pixels[1], width));
+        renderer.added_cells.push((pixels.0, pixels.1, width));
     }
 
     fn draw_square(renderer: &mut Renderer, mut x: i32, mut y: i32, size: f32, color: u32) {

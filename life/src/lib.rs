@@ -3,6 +3,8 @@ use wasm_bindgen::prelude::*;
 use std::collections::HashMap;
 use std::sync::{ Mutex, Arc };
 
+use crate::render::{RENDERER, pixel_to_cell};
+
 mod render;
 mod parser;
 
@@ -450,7 +452,9 @@ impl Life {
 
     pub fn set_cell(x: i32, y: i32, alive: bool) {
         let mut node = NODE.lock().unwrap();
-        *node = set_cell_recurse(node.clone(), y, x, alive);
+        let renderer = RENDERER.lock().unwrap();
+        let cells = pixel_to_cell(&renderer, x, y);
+        *node = set_cell_recurse(node.clone(), cells.1, cells.0, alive);
     }
 
     // this can and should be done better in the future
