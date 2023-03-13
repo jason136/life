@@ -3,8 +3,20 @@ import Controls from './Controls';
 
 function Universe({ Life, Renderer, memory }) {
   const canvasRef = useRef(null);
+  const isStepping = useRef(false);
   const animationFrame = useRef(null);
-  const [playing, setPlaying] = useState(false);
+  const queueDrawCell = useRef(null);
+  const queueSetCells = useRef([]);
+  const lastMousePos = useRef(null);
+
+  const [playing, _setPlaying] = useState(false);
+  const playingRef = useRef(playing);
+  const setPlaying = (data) => {
+    playingRef.current = data;
+    _setPlaying(data);
+  }
+
+  const [fpsInfo, setFpsInfo] = useState('');
 
   function loadRle(pattern) {
     const items = Life.parse_rle(pattern);
@@ -18,7 +30,7 @@ function Universe({ Life, Renderer, memory }) {
     canvas.width = width;
     canvas.height = height;
     Renderer.set_size(canvas.width, canvas.height, window.devicePixelRatio);
-    draw();
+    if (!playing) draw();
   }
 
   function offset(direction) {
@@ -36,33 +48,17 @@ function Universe({ Life, Renderer, memory }) {
         Renderer.move_offset(100, 0);
         break;
     }
-    draw();
+    if (!playing) draw();
   }
 
   function zoomOut(out) {
     Renderer.zoom_centered(out);
-    draw();
+    if (!playing) draw();
   }
 
   function step() {
     Life.advance(1);
-    draw();
-  }
-
-  function playLoop() {
-    step();
-    draw();
-    animationFrame.current = requestAnimationFrame(playLoop);
-  }
-
-  function play(play) {
-    if (play) {
-      animationFrame.current = requestAnimationFrame(playLoop);
-    }
-    else {
-      cancelAnimationFrame(animationFrame.current);
-    }
-    setPlaying(play);
+    if (!playing) draw();
   }
 
   function centerView() {
@@ -90,8 +86,6 @@ function Universe({ Life, Renderer, memory }) {
     var center_x = (bounds[0] + bounds[1]) / 2;
     var center_y = (bounds[2] + bounds[3]) / 2;
 
-    console.log(`center_x: ${center_x} center_y: ${center_y}`);
-
     if (0.1 * new_cell_width < 1) {
       center_x = Math.round(center_x * new_cell_width);
       center_y = Math.round(center_y * new_cell_width);
@@ -101,28 +95,83 @@ function Universe({ Life, Renderer, memory }) {
       center_y = Math.round((center_y * new_cell_width * 1.1));
     }
 
-    console.log(`center_x: ${center_x} center_y: ${center_y}`);
-    console.log(`new_cell_width: ${new_cell_width}`);
-
     Renderer.zoom_to(new_cell_width);
     Renderer.center_view(center_x, center_y);
-    draw();
+    if (!playing) draw();
+  }
+
+  function getMousePos(canvas, event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  }
+
+  const drag = (e) => {
+    if (lastMousePos !== null) {
+      let dx = Math.round(e.clientX - lastMousePos[0]);
+      let dy = Math.round(e.clientY - lastMousePos[1]);
+      Renderer.move_offset(dx, dy);
+      lastMousePos[0] += dx;
+      lastMousePos[1] += dy;
+    }
+  }
+
+  const drawCells = (e) => {
+    const mouse_pos = getMousePos(canvasRef.current, e);
+
+    queueDrawCell.current = [mouse_pos.x, mouse_pos.y];
+
+    // queueSetCells.current = [];
+    // queueSetCells.current.push([mouse_pos.x, mouse_pos.y, true]);
   }
   
+  function playLoop() {
+    if (isStepping.current) {
+      step();
+    }
+    draw();
+    animationFrame.current = requestAnimationFrame(playLoop);
+  }
+
+  function play(play) {
+    if (play) {
+      animationFrame.current = requestAnimationFrame(playLoop);
+    }
+    else {
+      cancelAnimationFrame(animationFrame.current);
+      animationFrame.current = null;
+    }
+  }
+
+  function playWithStep(step) {
+    isStepping.current = step;
+    play(step);
+    setPlaying(step);
+  }
+
   function draw() {
+    if (queueDrawCell.current) {
+      Renderer.draw_cell(queueDrawCell.current[0], queueDrawCell.current[1])
+    }
+
+    // if (queueSetCells.current.length > 0) {
+    //   for (let x = 0; x < queueSetCells.current.length; x++) {
+    //     Life.set_cell(queueSetCells.current[x][0], queueSetCells.current[x][1], queueSetCells.current[x][2]);
+    //   }
+    //   queueSetCells.current.current = [];
+    // }
+
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
     const width = canvas.width;
     const height = canvas.height;
     const imagePtr = Renderer.get_image_data();
-    console.log('pointer:' + imagePtr)
-    console.log(memory)
     const imageDataArray = new Uint8ClampedArray(memory.buffer, imagePtr, width * height * 4);
     const imageData = new ImageData(imageDataArray, width, height);
     context.putImageData(imageData, 0, 0);
-
-    console.log(Life.population());
   }
   
   useEffect(() => {
@@ -148,41 +197,80 @@ function Universe({ Life, Renderer, memory }) {
     console.log(Life.expand());
     console.log(Life.convert_rle(Life.expand(), 'gosper gun'));
 
-    Life.advance();
-    Life.advance();
-    Life.advance();
-    Life.advance();
-    Life.advance();
-    Life.advance();
-    Life.advance();
-  
-    window.addEventListener('resize', () => resizeCanvas());
-
     resizeCanvas();
-
-    console.log(memory.buffer.byteLength);
-
     centerView();
-    
     draw();
 
-    return () => {
+    const canvas = canvasRef.current;
 
+    canvas.onmousedown = (e) => {
+      e.preventDefault();
+
+      if (e.which === 3 || e.which === 2) {
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        if (Renderer.get_cell_width() >= 1) {
+          window.addEventListener('mousemove', drawCells, true);
+        }
+      }
+      if (e.which === 1) {
+        lastMousePos[0] = e.clientX;
+        lastMousePos[1] = e.clientY;
+        window.addEventListener('mousemove', drag, true);
+      }
+
+      if (!playingRef.current) {
+        isStepping.current = false;
+        play(true);
+      }
+      return false;
+    };
+
+    window.onmouseup = () => {
+      lastMousePos.current = null;
+      queueDrawCell.current = null;
+      window.removeEventListener('mousemove', drawCells, true);
+      window.removeEventListener('mousemove', drag, true);
+      canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
+      if (!playingRef.current) {
+        play(false);
+        draw()
+      };
+    };
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    
+    canvas.onmousewheel = (e) => {
+      e.preventDefault();
+      const mouse_pos = getMousePos(canvas, e);
+      Renderer.zoom_at((e.wheelDelta || -e.detail) < 0, mouse_pos.x, mouse_pos.y);
+      draw();
+      return false;
+    };
+
+    window.addEventListener('resize', () => resizeCanvas());
+
+    return () => {
+      play(false);
+      window.removeEventListener('resize', () => resizeCanvas());
+      window.removeEventListener('mousemove', draw, true);
+      window.removeEventListener('mousemove', drag, true);
+      canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
     }
   }, []);
 
   return (
     <div className="Universe">
-      <div id='fps'></div>
       <Controls 
         offset={offset}
         zoomOut={zoomOut}
         centerView={centerView}
         step={step}
-        play={play}
+        play={playWithStep}
         playing={playing}
       />
       <canvas className='Canvas' ref={canvasRef} />
+      {/* <p>fpsInfo</p> */}
     </div>
   )
 }
