@@ -29,23 +29,24 @@ function Universe({ Life, Renderer, memory }) {
     const height = document.documentElement.clientHeight;
     canvas.width = width;
     canvas.height = height;
-    Renderer.set_size(canvas.width, canvas.height, window.devicePixelRatio);
+    Renderer.set_size(canvas.width, canvas.height, 1);
+    // Renderer.set_size(canvas.width, canvas.height, window.devicePixelRatio);
     if (!playing) draw();
   }
 
   function offset(direction) {
     switch (direction) {
       case 'up':
-        Renderer.move_offset(0, -100);
-        break;
-      case 'down':
         Renderer.move_offset(0, 100);
         break;
+      case 'down':
+        Renderer.move_offset(0, -100);
+        break;
       case 'left':
-        Renderer.move_offset(-100, 0);
+        Renderer.move_offset(100, 0);
         break;
       case 'right':
-        Renderer.move_offset(100, 0);
+        Renderer.move_offset(-100, 0);
         break;
     }
     if (!playing) draw();
@@ -178,18 +179,23 @@ function Universe({ Life, Renderer, memory }) {
     // const items = [0, 0, 1, 1, 2, 1, 2, 0, 2, -1];
 
     // acorn
-    // const items = [0, 0, 1, 0, 1, -2, 3, -1, 4, 0, 5, 0, 6, 0];
+    // const acorn = [0, 0, 1, 0, 1, -2, 3, -1, 4, 0, 5, 0, 6, 0];
 
     // pulsar
-    // const items = [1, 2, 1, 3, 1, 4, 2, 1, 3, 1, 4, 1, 1, -2, 1, -3, 1, -4, 2, -1, 3, -1, 4, -1, 
-    //                 -1, -2, -1, -3, -1, -4, -2, -1, -3, -1, -4, -1, -1, 2, -1, 3, -1, 4, -2, 1, -3, 1, -4, 1, 
-    //                 2, 6, 3, 6, 4, 6, 2, -6, 3, -6, 4, -6, -2, -6, -3, -6, -4, -6, -2, 6, -3, 6, -4, 6,
-    //                 6, 2, 6, 3, 6, 4, 6, -2, 6, -3, 6, -4, -6, 2, -6, 3, -6, 4, -6, -2, -6, -3, -6, -4];
+    const pulsar = [1, 2, 1, 3, 1, 4, 2, 1, 3, 1, 4, 1, 1, -2, 1, -3, 1, -4, 2, -1, 3, -1, 4, -1, 
+                    -1, -2, -1, -3, -1, -4, -2, -1, -3, -1, -4, -1, -1, 2, -1, 3, -1, 4, -2, 1, -3, 1, -4, 1, 
+                    2, 6, 3, 6, 4, 6, 2, -6, 3, -6, 4, -6, -2, -6, -3, -6, -4, -6, -2, 6, -3, 6, -4, 6,
+                    6, 2, 6, 3, 6, 4, 6, -2, 6, -3, 6, -4, -6, 2, -6, 3, -6, 4, -6, -2, -6, -3, -6, -4];
 
     // gosper gun
     const items = [24, 0, 22, 1, 24, 1, 12, 2, 13, 2, 20, 2, 21, 2, 34, 2, 35, 2, 11, 3, 15, 3, 20, 3, 21, 
       3, 34, 3, 35, 3, 0, 4, 1, 4, 10, 4, 16, 4, 20, 4, 21, 4, 0, 5, 1, 5, 10, 5, 14, 5, 16, 5, 17, 5, 22, 
       5, 24, 5, 10, 6, 16, 6, 24, 6, 11, 7, 15, 7, 12, 8, 13, 8];
+
+    for (let x = 0; x < pulsar.length; x += 2) {
+      items.push(pulsar[x] + 50, pulsar[x + 1]);
+      items.push(pulsar[x] - 20, pulsar[x + 1]);
+    }
 
     Life.construct(items);
     console.log(Life.level());

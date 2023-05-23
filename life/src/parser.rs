@@ -20,7 +20,7 @@ fn to_rle(mut pts: Vec<(i32, i32)>) -> (String, (i32, i32)) {
     let min_x = pts.iter().map(|p| p.0).min().unwrap();
     let min_y = pts.iter().map(|p| p.1).min().unwrap();
 
-    pts.sort_by(|a, b| (&a.1).cmp(&b.1));
+    pts.sort_by(|a, b| (a.1).cmp(&b.1));
 
     let mut line = 0;
     let mut x = 0;
@@ -28,13 +28,12 @@ fn to_rle(mut pts: Vec<(i32, i32)>) -> (String, (i32, i32)) {
     let mut out: Vec<String> = Vec::new();
 
     fn flush_stars(stars: i32, mut out: Vec<String>) -> Vec<String> {
-        if stars == 1 {
-            out.push("o".to_string());
+        match stars {
+            1 => out.push("o".to_string()),
+            ref s if *s > 1 => out.push(format!("{}o", s)),
+            _ => {}
         }
-        else if stars > 1 {
-            out.push(format!("{}o", stars));
-        }
-        return out
+        out
     }
 
     for pt in pts.iter() {
@@ -80,13 +79,13 @@ fn to_rle(mut pts: Vec<(i32, i32)>) -> (String, (i32, i32)) {
 
     out = flush_stars(stars, out);
     out.push("!".to_string());
-    return (out.join(""), (max_x - min_x, max_y - min_y))
+    (out.join(""), (max_x - min_x, max_y - min_y))
 }
 
 #[wasm_bindgen]
 impl Life {
     pub fn parse_rle(rle: String) -> Vec<i32> {
-        let lines = rle.split("\n");
+        let lines = rle.split('\n');
         let mut positions: Vec<i32> = Vec::new();
         let mut x: i32 = 0;
         let mut y: i32 = 0;
@@ -94,14 +93,10 @@ impl Life {
 
         for line in lines {
             let line = line.trim();
-            if line.len() == 0 {
+            if line.is_empty() || complete {
                 continue;
             }
-            else if complete {
-                // comments
-                continue;
-            }
-            else if line.starts_with("#") {    
+            else if line.starts_with('#') {    
                 if "cCoOnN".contains(line.chars().nth(1).unwrap()) {
                     // comments
                     continue;
@@ -109,7 +104,7 @@ impl Life {
                 else if "pP".contains(line.chars().nth(1).unwrap()) {
                     let coords = line[2..].to_string();
                     for p in coords.chars() {
-                        if p.is_digit(10) {
+                        if p.is_ascii_digit() {
                             if x == 0 {
                                 x = p.to_digit(10).unwrap() as i32;
                             }
@@ -120,7 +115,7 @@ impl Life {
                     }
                 }
             }
-            else if line.starts_with("x") {
+            else if line.starts_with('x') {
                 // size is not needed
                 continue;
             }
@@ -128,7 +123,7 @@ impl Life {
                 let mut count: i32 = 0;
 
                 for char in line.chars() {
-                    if char.is_digit(10) {
+                    if char.is_ascii_digit() {
                         count *= 10;
                         count += char.to_string().parse::<i32>().unwrap();
                         continue;
@@ -163,14 +158,14 @@ impl Life {
             }
         }
 
-        return positions;
+        positions
     }
 
     pub fn convert_rle(pts: Vec<i32>, comment_string: String) -> String {
         let (rle, (x, y)) = to_rle(pts.chunks(2).map(|c| (c[0], c[1])).collect());
         let mut output = Vec::new();
 
-        let comments = comment_string.split("\n");
+        let comments = comment_string.split('\n');
         for comment in comments {
             output.push(format!("#C {}", comment));
         }
@@ -184,17 +179,17 @@ impl Life {
                 index += 1;
             }
             else {
-                wrapped.push_str("\n");
+                wrapped.push('\n');
                 index = 0;
             }
         }
         output.push(wrapped);
         
-        return output.join("\n");
+        output.join("\n")
     }
 
     pub fn parse_life106(text: String) -> Vec<i32> {
-        let lines = text.split("\n");
+        let lines = text.split('\n');
         let mut positions: Vec<i32> = Vec::new();
 
         let pattern_106 = r"\s*\-?[0-9]+\s+\-?[0-9]+\s*";
@@ -217,6 +212,6 @@ impl Life {
             }
         }
 
-        return positions;
+        positions
     }
 }

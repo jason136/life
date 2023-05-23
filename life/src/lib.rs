@@ -91,7 +91,7 @@ fn join(a: NodePtr, b: NodePtr, c: NodePtr, d: NodePtr) -> NodePtr {
     // }
 
     let n_level = &a.level() + 1;
-    let n_population: u32 = &a.population() + &b.population() + &c.population() + &d.population();
+    let n_population: u32 = a.population() + b.population() + c.population() + d.population();
 
     let n = Some(Arc::new(Node { 
         a, b, c, d,
@@ -101,7 +101,7 @@ fn join(a: NodePtr, b: NodePtr, c: NodePtr, d: NodePtr) -> NodePtr {
     }));
 
     // JOINCACHE.lock().unwrap().insert(n_hash, n.clone());
-    return n
+    n
 }
 
 fn get_zero(k: u8) -> NodePtr {
@@ -109,34 +109,27 @@ fn get_zero(k: u8) -> NodePtr {
         return ZEROCACHE.lock().unwrap().get(&k).unwrap().clone();
     }
 
-    let n: NodePtr;
-    if k == 0 {
-        n = Some(Arc::new(OFF.clone()))
+    let n = if k == 0 {
+        Some(Arc::new(OFF.clone()))
     }
     else {
-        n = join (
+        join (
             get_zero(k - 1),
             get_zero(k - 1),
             get_zero(k - 1),
             get_zero(k - 1),
         )
-    }
+    };
     ZEROCACHE.lock().unwrap().insert(k, n.clone());
-    return n;
+    n
 }
 
 fn life(a: NodePtr, b: NodePtr, c: NodePtr, d: NodePtr, e: NodePtr, 
         f: NodePtr, g: NodePtr, h: NodePtr, i: NodePtr) -> NodePtr {
-    let mut outer = 0;
-    for n in [a, b, c, d, f, g, h, i].iter() {
-        outer += n.population();
-    }
+    let outer = [a, b, c, d, f, g, h, i].iter().fold(0, |acc, n| acc + n.population());
 
-    if outer == 2 && e.population() > 0 {
-        return Some(Arc::new(ON.clone()));
-    }
-    else if outer == 3 {
-        return Some(Arc::new(ON.clone()));
+    if (outer == 2 && e.population() == 1) || outer == 3 {
+        Some(Arc::new(ON.clone()))
     }
     else {
         Some(Arc::new(OFF.clone()))
@@ -154,7 +147,7 @@ fn life_4x4(m: NodePtr) -> NodePtr {
 use std::sync::atomic::{AtomicUsize, Ordering};
 static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-fn successor(m: NodePtr, mut j: Option<u8>) -> NodePtr {
+fn successor(m: NodePtr, j: Option<u8>) -> NodePtr {
     CALL_COUNT.fetch_add(1, Ordering::SeqCst);
 
     if m.population() == 0 {
@@ -164,17 +157,15 @@ fn successor(m: NodePtr, mut j: Option<u8>) -> NodePtr {
     if m.level() > 3 && SUCCESSORCACHE.lock().unwrap().contains_key(&(m.hash(), j)) {
         return SUCCESSORCACHE.lock().unwrap().get(&(m.hash(), j)).unwrap().clone();
     }
-
-    let s: NodePtr;
     
-    if m.level() == 2 {
-        s = life_4x4(m.clone());
+    let s = if m.level() == 2 {
+        life_4x4(m.clone())
     }
     else {
-        j = if j.is_none() {
-            Some(m.level() - 2)
+        if let Some(j) = j {
+            Some(std::cmp::min(j, m.level() - 2))
         } else {
-            Some(std::cmp::min(j.unwrap(), m.level() - 2))
+            Some(m.level() - 2)
         };
     
         let c1 = successor(join(m.a().a(), m.a().b(), m.a().c(), m.a().d()), j);
@@ -187,35 +178,35 @@ fn successor(m: NodePtr, mut j: Option<u8>) -> NodePtr {
         let c8 = successor(join(m.c().b(), m.d().a(), m.c().d(), m.d().c()), j);
         let c9 = successor(join(m.d().a(), m.d().b(), m.d().c(), m.d().d()), j);
     
-        s = if j.unwrap() < m.level() - 2 { 
+        if j.unwrap() < m.level() - 2 { 
             join(
                 join(c1.d(), c2.c(), c4.b(), c5.a()),
                 join(c2.d(), c3.c(), c5.b(), c6.a()),
                 join(c4.d(), c5.c(), c7.b(), c8.a()),
                 join(c5.d(), c6.c(), c8.b(), c9.a()),
-            ) } else { 
+            ) 
+        } else { 
             join(
                 successor(join(c1.clone(), c2.clone(), c4.clone(), c5.clone()), j),
                 successor(join(c2.clone(), c3.clone(), c5.clone(), c6.clone()), j),
                 successor(join(c4.clone(), c5.clone(), c7.clone(), c8.clone()), j),
                 successor(join(c5.clone(), c6.clone(), c8.clone(), c9.clone()), j),
             )
-        };
-    }
+        }
+    };
     SUCCESSORCACHE.lock().unwrap().insert((m.hash(), j), s.clone());
-    return s;
+    s
 }
 
 fn is_padded(node: NodePtr) -> bool {
-    return 
-        node.a().population() == node.a().d().d().population() &&
-        node.b().population() == node.b().c().c().population() &&
-        node.c().population() == node.c().b().b().population() &&
-        node.d().population() == node.d().a().a().population()
+    node.a().population() == node.a().d().d().population() &&
+    node.b().population() == node.b().c().c().population() &&
+    node.c().population() == node.c().b().b().population() &&
+    node.d().population() == node.d().a().a().population()
 }
 
 fn inner(node: NodePtr) -> NodePtr {
-    return join(
+    join(
         node.a().d(),
         node.b().c(),
         node.c().b(),
@@ -225,28 +216,28 @@ fn inner(node: NodePtr) -> NodePtr {
 
 fn center(m: NodePtr) -> NodePtr {
     let z = get_zero(m.a().level());
-    return join(
+    join(
         join(z.clone(), z.clone(), z.clone(), m.a()), 
         join(z.clone(), z.clone(), m.b(), z.clone()), 
         join(z.clone(), m.c(), z.clone(), z.clone()), 
         join(m.d(), z.clone(), z.clone(), z),
-    );
+    )
 }
 
 fn crop(node: NodePtr) -> NodePtr {
     if node.level() <= 3 || !is_padded(node.clone()) {
-        return node
+        node
     }
     else {
-        return crop(inner(node))
+        crop(inner(node))
     }
 }
 fn pad(node: NodePtr) -> NodePtr {
     if node.level() <= 3 || !is_padded(node.clone()) {
-        return pad(center(node))
+        pad(center(node))
     }
     else {
-        return node
+        node
     }
 }
 
@@ -258,7 +249,7 @@ fn expand_recurse(node: &NodePtr, x: i32, y: i32) -> Vec<i32> {
     let size = 2_u32.pow(node.level() as u32);
 
     if node.level() == 0 {
-        return vec![x, y]
+        vec![x, y]
     }
     else {
         let offset = (size >> 1) as i32;
@@ -267,7 +258,7 @@ fn expand_recurse(node: &NodePtr, x: i32, y: i32) -> Vec<i32> {
         output.append(&mut expand_recurse(&node.b(), x + offset, y));
         output.append(&mut expand_recurse(&node.c(), x, y + offset));
         output.append(&mut expand_recurse(&node.d(), x + offset, y + offset));
-        return output
+        output
     }
 }
 
@@ -296,32 +287,27 @@ fn set_cell_recurse(node: NodePtr, x: i32, y: i32, alive: bool) -> NodePtr {
     else {
         a = set_cell_recurse(node.a(), x + offset, y + offset, alive);
     }
-    return join(a, b, c, d)
+    join(a, b, c, d)
 }
 
 fn is_alive_recurse(node: NodePtr, x: i32, y: i32) -> bool {
     if node.level() == 0 {
-        if node.population() == 1 {
-            return true
-        }
-        else {
-            return false
-        }
+        node.population() == 1
     }
     else {
         let offset = (2_u32.pow(node.level() as u32) >> 2) as i32;
 
         if x >= 0 && y >= 0 {
-            return is_alive_recurse(node.d(), x - offset, y - offset)
+            is_alive_recurse(node.d(), x - offset, y - offset)
         }
         else if x >= 0 && y < 0 {
-            return is_alive_recurse(node.c(), x - offset, y + offset)
+            is_alive_recurse(node.c(), x - offset, y + offset)
         }
         else if x < 0 && y >= 0 {
-            return is_alive_recurse(node.b(), x + offset, y - offset)
+            is_alive_recurse(node.b(), x + offset, y - offset)
         }
         else {
-            return is_alive_recurse(node.a(), x + offset, y + offset)
+            is_alive_recurse(node.a(), x + offset, y + offset)
         }
     }
 }
@@ -331,7 +317,7 @@ fn get_bounds_recurse(node: NodePtr, x: i32, y: i32, border: &str) -> Vec<(i32, 
         return vec![(0, 0, border)]
     }
     if node.level() == 0 {
-        return vec![(x, y, border)]
+        vec![(x, y, border)]
     }
     else {
         let offset = 2_i32.pow(node.level() as u32) >> 2;
@@ -348,17 +334,15 @@ fn get_bounds_recurse(node: NodePtr, x: i32, y: i32, border: &str) -> Vec<(i32, 
                 output.append(&mut get_bounds_recurse(node.d(), x + offset, y + offset, "left"));
             }
         }
-        else {
-            if node.a().population() > 0 || node.b().population() > 0 {
-                output.append(&mut get_bounds_recurse(node.a(), x - offset, y - offset, "top"));
-                output.append(&mut get_bounds_recurse(node.b(), x + offset, y - offset, "top"));
-            }
-            else {
-                output.append(&mut get_bounds_recurse(node.c(), x - offset, y + offset, "top"));
-                output.append(&mut get_bounds_recurse(node.d(), x + offset, y + offset, "top"));
-            }
+        else if node.a().population() > 0 || node.b().population() > 0 {
+            output.append(&mut get_bounds_recurse(node.a(), x - offset, y - offset, "top"));
+            output.append(&mut get_bounds_recurse(node.b(), x + offset, y - offset, "top"));
         }
-        return output
+        else {
+            output.append(&mut get_bounds_recurse(node.c(), x - offset, y + offset, "top"));
+            output.append(&mut get_bounds_recurse(node.d(), x + offset, y + offset, "top"));
+        }
+        output
     }
 }
 
@@ -374,11 +358,11 @@ impl Life {
         let min_y = output.chunks(2).map(|c| c[1]).min().unwrap();
         let min = std::cmp::min(min_x, min_y);
 
-        return output.iter().map(|c| c - min).collect();
+        output.iter().map(|c| c - min).collect()
     }
 
     pub fn construct(pts: Vec<i32>) {
-        if pts.len() == 0 || pts.len() % 2 == 1 { return }
+        if pts.is_empty() || pts.len() % 2 == 1 { return }
 
         let x_vals: Vec::<i32> = pts.chunks(2).map(|c| c[0]).collect();
         let y_vals: Vec::<i32> = pts.chunks(2).map(|c| c[1]).collect();
@@ -399,7 +383,7 @@ impl Life {
             let mut next_level = std::collections::HashMap::new();
             let z = get_zero(k);
 
-            while pattern.len() > 0 {
+            while !pattern.is_empty() {
                 let (mut x, mut y) = pattern.iter().next().unwrap().0;
                 x = x - (x & 1);
                 y = y - (y & 1);
@@ -427,7 +411,7 @@ impl Life {
         let mut bits = Vec::new();
         while n > 0 {
             bits.push(n & 1);
-            n = n >> 1;
+            n >>= 1;
             *node = center(node.clone());
         }
 
@@ -447,7 +431,7 @@ impl Life {
     pub fn is_alive(x: i32, y: i32) -> bool {
         let node = NODE.lock().unwrap();
         // best not to ask why x and y are swapped
-        return is_alive_recurse(node.clone(), y, x);
+        is_alive_recurse(node.clone(), y, x)
     }
 
     pub fn set_cell(x: i32, y: i32, alive: bool) {
@@ -476,7 +460,7 @@ impl Life {
         let x = expanded.chunks(2).map(|c| c[0]).max().unwrap();
         let y = expanded.chunks(2).map(|c| c[1]).max().unwrap();
 
-        return vec![min_x, min_x + x, min_y, min_y + y]
+        vec![min_x, min_x + x, min_y, min_y + y]
     }
 
     // needs revision, don't use for now.

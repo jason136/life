@@ -30,7 +30,6 @@ pub struct Renderer {
     border_width: f32,
     border_pixels: i32,
     cell_width: f32,
-    pixel_ratio: f32,
 
     image_data_pixels: Vec<u32>,
     image_data_bytes: Vec<u8>,
@@ -50,7 +49,6 @@ pub static RENDERER: Lazy<Mutex<Renderer>> = Lazy::new(|| { Mutex::new(Renderer 
     border_width: 0.1,
     border_pixels: 0,
     cell_width: 32.0,
-    pixel_ratio: 1.0,
 
     image_data_pixels: Vec::new(),
     image_data_bytes: Vec::new(),
@@ -59,14 +57,14 @@ pub static RENDERER: Lazy<Mutex<Renderer>> = Lazy::new(|| { Mutex::new(Renderer 
 
 pub fn pixel_to_cell(renderer: &Renderer, x: i32, y: i32) -> (i32, i32) {
     (
-        ((x as f32 * renderer.pixel_ratio - renderer.canvas_offset_x as f32 + renderer.border_width / 2.0) / renderer.cell_width).round() as i32,
-        ((y as f32 * renderer.pixel_ratio - renderer.canvas_offset_y as f32 + renderer.border_width / 2.0) / renderer.cell_width).round() as i32,
+        ((x as f32 - renderer.canvas_offset_x as f32 + renderer.border_width / 2.0) / renderer.cell_width).round() as i32,
+        ((y as f32 - renderer.canvas_offset_y as f32 + renderer.border_width / 2.0) / renderer.cell_width).round() as i32,
     )
 }
 pub fn cell_to_pixel(renderer: &Renderer, x: i32, y: i32) -> (i32, i32) {
     (
-        ((x as f32 * renderer.cell_width + renderer.canvas_offset_x as f32 - renderer.border_width / 2.0) / renderer.pixel_ratio).round() as i32,
-        ((y as f32 * renderer.cell_width + renderer.canvas_offset_y as f32 - renderer.border_width / 2.0) / renderer.pixel_ratio).round() as i32,
+        (x as f32 * renderer.cell_width + renderer.canvas_offset_x as f32 - renderer.border_width / 2.0).round() as i32,
+        (y as f32 * renderer.cell_width + renderer.canvas_offset_y as f32 - renderer.border_width / 2.0).round() as i32,
     )
 }
 
@@ -96,13 +94,12 @@ impl Renderer {
 
     pub fn zoom_at(out: bool, center_x: i32, center_y: i32) {
         let mut renderer = RENDERER.lock().unwrap();
-        let pixel_ratio = renderer.pixel_ratio;
-        Self::zoom(&mut *renderer, out, (center_x as f32 * pixel_ratio).round() as i32, (center_y as f32 * pixel_ratio).round() as i32);
+        Self::zoom(&mut renderer, out, center_x, center_y);
     }
     pub fn zoom_centered(out: bool) {
         let mut renderer = RENDERER.lock().unwrap();
         let (width, height) = (renderer.canvas_width, renderer.canvas_height);
-        Self::zoom(&mut *renderer, out, width >> 1, height >> 1);
+        Self::zoom(&mut renderer, out, width >> 1, height >> 1);
     }
     pub fn zoom_to(level: f32) {
         RENDERER.lock().unwrap().cell_width = level;
@@ -110,15 +107,14 @@ impl Renderer {
 
     pub fn move_offset(x: i32, y: i32) {
         let mut renderer = RENDERER.lock().unwrap();
-        renderer.canvas_offset_x += (x as f32 * renderer.pixel_ratio).round() as i32;
-        renderer.canvas_offset_y += (y as f32 * renderer.pixel_ratio).round() as i32;
+        renderer.canvas_offset_x += x;
+        renderer.canvas_offset_y += y;
     }
 
-    pub fn set_size(width: i32, height: i32, factor: f32) {
+    pub fn set_size(width: i32, height: i32) {
         let mut renderer = RENDERER.lock().unwrap();
-        renderer.canvas_width = (width as f32 * factor).round() as i32;
-        renderer.canvas_height = (height as f32 * factor).round() as i32;
-        renderer.pixel_ratio = factor;
+        renderer.canvas_width = width;
+        renderer.canvas_height = height;
     }
 
     pub fn center_view(offset_x: i32, offset_y: i32) {
@@ -126,8 +122,8 @@ impl Renderer {
         renderer.canvas_offset_x = renderer.canvas_width >> 1;
         renderer.canvas_offset_y = renderer.canvas_height >> 1;
 
-        renderer.canvas_offset_x += (-offset_x as f32 * renderer.pixel_ratio).round() as i32;
-        renderer.canvas_offset_y += (-offset_y as f32 * renderer.pixel_ratio).round() as i32;
+        renderer.canvas_offset_x += -offset_x;
+        renderer.canvas_offset_y += -offset_y;
     }
 
     pub fn get_cell_width() -> f32 {
@@ -137,8 +133,8 @@ impl Renderer {
     pub fn draw_cell(x: i32, y: i32) {
         let mut renderer = RENDERER.lock().unwrap();
         let width = renderer.cell_width;
-        let cells = pixel_to_cell(&*renderer, x, y);
-        let pixels = cell_to_pixel(&*renderer, cells.0, cells.1);
+        let cells = pixel_to_cell(&renderer, x, y);
+        let pixels = cell_to_pixel(&renderer, cells.0, cells.1);
 
         renderer.added_cells.push((pixels.0, pixels.1, width));
     }
@@ -189,7 +185,7 @@ impl Renderer {
 
         if size <= 1.0 {
             if node.population() > 0 {
-                Self::draw_square(renderer, left.round() as i32 + renderer.canvas_offset_x | 0, top.round() as i32 + renderer.canvas_offset_y | 0, 1.0, renderer.cell_color);
+                Self::draw_square(renderer, left.round() as i32 + renderer.canvas_offset_x, top.round() as i32 + renderer.canvas_offset_y, 1.0, renderer.cell_color);
             }
         }
         else if node.level() == 0 {
@@ -212,18 +208,18 @@ impl Renderer {
         let node = NODE.lock().unwrap();
 
         renderer.image_data_pixels = vec![renderer.background_color; (renderer.canvas_width * renderer.canvas_height) as usize];
-        renderer.border_pixels = (renderer.border_width * renderer.cell_width as f32).floor() as i32 | 0;
+        renderer.border_pixels = (renderer.border_width * renderer.cell_width).floor() as i32;
         
         let size = 2.0_f32.powf(node.level() as f32 - 1.0) * renderer.cell_width;
-        Self::draw_node(&mut *renderer, node.clone(), size * 2.0, -size, -size);
+        Self::draw_node(&mut renderer, node.clone(), size * 2.0, -size, -size);
         
         for (x, y, width) in renderer.added_cells.drain(..).collect::<Vec<_>>() {
             let new_cell_color = renderer.added_cell_color;
-            Self::draw_square(&mut *renderer, x, y, width, new_cell_color);
+            Self::draw_square(&mut renderer, x, y, width, new_cell_color);
         }
         
         renderer.image_data_bytes = renderer.image_data_pixels.iter().flat_map(|val| val.to_be_bytes()).collect();
 
-        return renderer.image_data_bytes.as_ptr()
+        renderer.image_data_bytes.as_ptr()
     }
 }
